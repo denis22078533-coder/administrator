@@ -1,0 +1,45 @@
+{
+  "tests": [
+    {
+      "name": "Register new user",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "register",
+        "username": "test_moto_99",
+        "email": "test_moto_99@example.com",
+        "password": "password123",
+        "display_name": "Тестовый Пилот"
+      },
+      "expectedStatus": 200,
+      "expectedBody": { "token": "string" },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login with email",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "login",
+        "login": "test_moto_99@example.com",
+        "password": "password123"
+      },
+      "expectedStatus": 200,
+      "expectedBody": { "token": "string" },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Wrong password returns 401",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "login",
+        "login": "test_moto_99@example.com",
+        "password": "wrongpass"
+      },
+      "expectedStatus": 401,
+      "expectedBody": { "error": "string" },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
