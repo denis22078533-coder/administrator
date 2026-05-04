@@ -1,6 +1,13 @@
-name: Build LUMIN PRO
+name: Build and Deploy Preview
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -15,8 +22,23 @@ jobs:
         run: npm install
       - name: Build Project
         run: npm run build
-      - name: Upload Build
+      - name: Upload for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+      - name: Archive for RegRu
         uses: actions/upload-artifact@v4
         with:
           name: LUMIN-PRO-DIST
           path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
