@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
   provider: "openai",
   model: "gpt-4o-mini",
-  baseUrl: import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai",
+  baseUrl: import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai/v1",
   proxyUrl: "",
   customPrompt: "",
 };
