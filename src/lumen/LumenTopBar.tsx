@@ -39,7 +39,7 @@ export default function LumenTopBar({ status, cycleLabel, selfEditActive, isAdmi
           <div className="w-5 h-5 rounded-md bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center shadow-[0_0_8px_#f59e0b80] text-sm">
             🐜
           </div>
-          <span className="text-white font-semibold text-sm tracking-tight">Муравей</span>
+          <span className="text-white font-semibold text-sm tracking-tight">LUMIN PRO</span>
           <span className="hidden lg:inline text-white/20 text-[10px] font-medium tracking-wider ml-1">— AI-разработчик сайтов</span>
         </div>
 
