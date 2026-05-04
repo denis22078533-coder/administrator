@@ -100,10 +100,10 @@ export default function FeedPage() {
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
         <div>
-          <span className="font-oswald text-2xl font-bold tracking-widest text-white">
-            MOTO<span className="text-fire">FEED</span>
-          </span>
-          <span className="ml-2 text-xs text-muted-foreground font-roboto">Ставрополье · Кубань</span>
+          <h1 className="font-oswald text-2xl font-bold tracking-widest text-white">
+            Создание сайтов с помощью ИИ за 5 минут
+          </h1>
+          <p className="text-sm text-muted-foreground font-roboto">Я не просто пишу код, я создаю ваш бизнес в цифре</p>
         </div>
         <div className="flex gap-3">
           <button className="text-muted-foreground hover:text-white transition-colors">
@@ -111,7 +111,7 @@ export default function FeedPage() {
           </button>
           <button className="text-muted-foreground hover:text-white transition-colors relative">
             <Icon name="Bell" size={22} />
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-fire rounded-full" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-accent rounded-full" />
           </button>
         </div>
       </div>
@@ -120,14 +120,14 @@ export default function FeedPage() {
       <div className="px-4 py-3 flex gap-3 overflow-x-auto scrollbar-hide">
         {STORIES.map((s) => (
           <div key={s.id} className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl border-2 transition-transform hover:scale-105 ${s.live ? 'border-fire bg-fire/10' : 'border-border bg-secondary'}`}>
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl border-2 transition-transform hover:scale-105 ${s.live ? 'border-accent bg-accent/10' : 'border-border bg-secondary'}`}>
               {s.icon}
               {s.live && (
                 <span className="absolute mt-10 ml-10 w-3 h-3 bg-red-500 rounded-full border-2 border-background live-pulse" />
               )}
             </div>
             <span className="text-xs text-muted-foreground font-roboto whitespace-nowrap">{s.name}</span>
-            {s.live && <span className="text-[9px] text-fire font-oswald font-bold tracking-wider">LIVE</span>}
+            {s.live && <span className="text-[9px] text-accent font-oswald font-bold tracking-wider">LIVE</span>}
           </div>
         ))}
       </div>
@@ -168,7 +168,7 @@ export default function FeedPage() {
 
               {!post.isLive && (
                 <button className="absolute inset-0 flex items-center justify-center group">
-                  <div className="w-14 h-14 rounded-full bg-black/60 border-2 border-white/80 flex items-center justify-center group-hover:bg-fire/80 transition-colors">
+                  <div className="w-14 h-14 rounded-full bg-black/60 border-2 border-white/80 flex items-center justify-center group-hover:bg-accent/80 transition-colors">
                     <Icon name="Play" size={24} className="text-white ml-1" />
                   </div>
                 </button>
@@ -197,7 +197,7 @@ export default function FeedPage() {
             <div className="px-4 py-2 flex items-center gap-5">
               <button
                 onClick={() => toggleLike(post.id)}
-                className={`flex items-center gap-1.5 transition-colors ${liked.includes(post.id) ? 'text-fire' : 'text-muted-foreground hover:text-white'}`}
+                className={`flex items-center gap-1.5 transition-colors ${liked.includes(post.id) ? 'text-accent' : 'text-muted-foreground hover:text-white'}`}
               >
                 <Icon name="Heart" size={20} />
                 <span className="text-sm font-roboto">{post.likes + (liked.includes(post.id) ? 1 : 0)}</span>
@@ -212,7 +212,7 @@ export default function FeedPage() {
               <div className="flex-1" />
               <button
                 onClick={() => toggleSave(post.id)}
-                className={`transition-colors ${saved.includes(post.id) ? 'text-fire' : 'text-muted-foreground hover:text-white'}`}
+                className={`transition-colors ${saved.includes(post.id) ? 'text-accent' : 'text-muted-foreground hover:text-white'}`}
               >
                 <Icon name="Bookmark" size={20} />
               </button>
