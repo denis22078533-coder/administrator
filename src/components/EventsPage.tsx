@@ -2,10 +2,10 @@ import { useState } from "react";
 import Icon from "@/components/ui/icon";
 
 const IMG = {
-  enduro: "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/6cac6f42-ec5a-4ad6-a962-e9384f9e056e.jpg",
-  rally: "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/79fd5643-459c-43a9-9578-3639ce4e9954.jpg",
-  moto: "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/261e0c1d-6fba-4873-aca3-cd686acca29f.jpg",
-  drift: "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/670c0f28-b4a8-4b70-8041-7d46e85ab49b.jpg",
+  enduro: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80",
+  rally: "https://images.unsplash.com/photo-1591824438708-ce405f36ba3d?w=800&q=80",
+  moto: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&q=80",
+  drift: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&q=80",
 };
 
 const CATEGORIES = ["Все", "Эндуро", "Мотокросс", "Ралли", "Дрифт", "Кросс-кантри"];

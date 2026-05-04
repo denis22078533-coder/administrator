@@ -12,23 +12,14 @@ CORS = {
     "Content-Type": "application/json",
 }
 
-INCLUDE_DIRS = ["src", "backend", "db_migrations", "scripts"]
-INCLUDE_ROOT_FILES = [
-    "package.json", "vite.config.ts", "vite.config.js",
-    "tailwind.config.ts", "tailwind.config.js",
-    "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
-    "postcss.config.js", "postcss.config.cjs",
-    "index.html", ".env.example",
-]
-SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".cache", "__pycache__", ".venv"}
-SKIP_EXT = {".pyc", ".pyo", ".log"}
-MAX_FILE_SIZE = 400 * 1024
-
 
 def handler(event: dict, context) -> dict:
-    """GitHub helper: скачать архив репозитория (action=download) или
-    выгрузить исходники платформы в GitHub (action=push).
-    Принимает: { action, token, repo, branch }"""
+    """GitHub helper:
+    - action=download : скачать ZIP архив репозитория
+    - action=push     : выгрузить файлы (переданные фронтендом) в GitHub
+    - action=push_file: записать один файл в GitHub
+    Тело: { action, token, repo, branch, files?, path?, content? }
+    """
 
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
@@ -47,14 +38,142 @@ def handler(event: dict, context) -> dict:
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "token and repo required"})}
 
     if action == "push":
-        return _push_to_github(token, repo, branch)
+        return _push_files(token, repo, branch, body)
 
-    # action == "download" — оригинальная логика
+    if action == "push_file":
+        return _push_single_file(token, repo, branch, body)
+
+    # action == "download"
+    return _download_zip(token, repo, branch)
+
+
+def _gh_headers(token: str) -> dict:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "User-Agent": "Muravey-Engine/1.0",
+    }
+
+
+def _get_sha(token: str, repo: str, branch: str, path: str) -> str | None:
+    """Получить текущий SHA файла (None если файл не существует)."""
+    url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
+    req = urllib.request.Request(url, headers=_gh_headers(token))
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read()).get("sha")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    except Exception:
+        return None
+
+
+def _put_file(token: str, repo: str, branch: str, path: str, content_b64: str, sha: str | None, message: str) -> tuple[bool, str]:
+    """Записать файл в GitHub. Возвращает (ok, error_message)."""
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    payload: dict = {"message": message, "content": content_b64, "branch": branch}
+    if sha:
+        payload["sha"] = sha
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=_gh_headers(token),
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            r.read()
+        return True, ""
+    except urllib.error.HTTPError as e:
+        err = e.read().decode("utf-8", errors="replace")[:200]
+        return False, f"HTTP {e.code}: {err}"
+    except Exception as e:
+        return False, str(e)
+
+
+def _push_files(token: str, repo: str, branch: str, body: dict) -> dict:
+    """
+    Принимает список файлов от фронтенда и пушит каждый в GitHub.
+    body.files = [ { path: "src/App.tsx", content_b64: "base64..." }, ... ]
+    """
+    files = body.get("files")
+    if not files or not isinstance(files, list):
+        return {
+            "statusCode": 400,
+            "headers": CORS,
+            "body": json.dumps({"error": "files array required. Send files from frontend as base64."}),
+        }
+
+    pushed = 0
+    errors = []
+
+    for item in files:
+        path = (item.get("path") or "").strip()
+        content_b64 = (item.get("content_b64") or "").strip()
+        if not path or not content_b64:
+            errors.append(f"Пропущен файл: нет path или content_b64")
+            continue
+
+        try:
+            sha = _get_sha(token, repo, branch, path)
+        except Exception as e:
+            errors.append(f"{path}: ошибка получения SHA: {e}")
+            continue
+
+        ok, err = _put_file(token, repo, branch, path, content_b64, sha, f"Муравей: {path}")
+        if ok:
+            pushed += 1
+        else:
+            errors.append(f"{path}: {err}")
+
+    return {
+        "statusCode": 200,
+        "headers": CORS,
+        "body": json.dumps({
+            "ok": pushed > 0,
+            "pushed": pushed,
+            "total": len(files),
+            "errors": errors[:10],
+            "message": f"Выгружено {pushed} из {len(files)} файлов в {repo}",
+        }),
+    }
+
+
+def _push_single_file(token: str, repo: str, branch: str, body: dict) -> dict:
+    """
+    Записывает один файл в GitHub.
+    body.path = "src/lumen/LumenApp.tsx"
+    body.content_b64 = "base64 строка"
+    body.message = "необязательный коммит-сообщение"
+    """
+    path = (body.get("path") or "").strip()
+    content_b64 = (body.get("content_b64") or "").strip()
+    message = (body.get("message") or f"Муравей: обновил {path}").strip()
+
+    if not path or not content_b64:
+        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "path and content_b64 required"})}
+
+    try:
+        sha = _get_sha(token, repo, branch, path)
+    except Exception as e:
+        return {"statusCode": 502, "headers": CORS, "body": json.dumps({"error": f"Ошибка получения SHA: {e}"})}
+
+    ok, err = _put_file(token, repo, branch, path, content_b64, sha, message)
+    if ok:
+        return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": f"Файл {path} записан в {repo}"})}
+    else:
+        return {"statusCode": 502, "headers": CORS, "body": json.dumps({"ok": False, "error": err})}
+
+
+def _download_zip(token: str, repo: str, branch: str) -> dict:
     url = f"https://api.github.com/repos/{repo}/zipball/{branch}"
     req = urllib.request.Request(url, headers={
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
-        "User-Agent": "Lumen-Platform/1.0",
+        "User-Agent": "Muravey-Platform/1.0",
     })
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
@@ -66,86 +185,3 @@ def handler(event: dict, context) -> dict:
         return {"statusCode": e.code, "headers": CORS, "body": json.dumps({"error": f"GitHub {e.code}: {err[:300]}"})}
     except Exception as e:
         return {"statusCode": 502, "headers": CORS, "body": json.dumps({"error": str(e)})}
-
-
-def _push_to_github(token: str, repo: str, branch: str) -> dict:
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    files_to_push: list[tuple[str, str]] = []
-
-    for fname in INCLUDE_ROOT_FILES:
-        fpath = os.path.join(base_dir, fname)
-        if os.path.isfile(fpath):
-            files_to_push.append((fname, fpath))
-
-    for dname in INCLUDE_DIRS:
-        dir_path = os.path.join(base_dir, dname)
-        if not os.path.isdir(dir_path):
-            continue
-        for root, dirs, files in os.walk(dir_path):
-            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
-            for fname in files:
-                ext = os.path.splitext(fname)[1].lower()
-                if ext in SKIP_EXT:
-                    continue
-                abs_path = os.path.join(root, fname)
-                if os.path.getsize(abs_path) > MAX_FILE_SIZE:
-                    continue
-                rel_path = os.path.relpath(abs_path, base_dir).replace("\\", "/")
-                files_to_push.append((rel_path, abs_path))
-
-    gh_headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json",
-        "User-Agent": "Lumen-Engine/1.0",
-    }
-
-    pushed = 0
-    errors = []
-
-    for rel_path, abs_path in files_to_push:
-        try:
-            with open(abs_path, "rb") as f:
-                content_b64 = base64.b64encode(f.read()).decode("utf-8")
-
-            api_url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
-
-            sha = None
-            get_req = urllib.request.Request(f"{api_url}?ref={branch}", headers=gh_headers)
-            try:
-                with urllib.request.urlopen(get_req, timeout=10) as r:
-                    sha = json.loads(r.read()).get("sha")
-            except urllib.error.HTTPError as e:
-                if e.code != 404:
-                    errors.append(f"{rel_path}: GET {e.code}")
-                    continue
-
-            payload: dict = {"message": f"Engine Push: {rel_path}", "content": content_b64, "branch": branch}
-            if sha:
-                payload["sha"] = sha
-
-            put_req = urllib.request.Request(
-                api_url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=gh_headers,
-                method="PUT",
-            )
-            with urllib.request.urlopen(put_req, timeout=15) as r:
-                r.read()
-            pushed += 1
-
-        except Exception as e:
-            errors.append(f"{rel_path}: {str(e)[:80]}")
-
-    return {
-        "statusCode": 200,
-        "headers": CORS,
-        "body": json.dumps({
-            "ok": True,
-            "pushed": pushed,
-            "total": len(files_to_push),
-            "errors": errors[:10],
-            "message": f"Выгружено {pushed} из {len(files_to_push)} файлов в {repo}",
-        }),
-    }

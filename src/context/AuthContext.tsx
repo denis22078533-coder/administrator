@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-const AUTH_URL = "https://functions.poehali.dev/eeb54226-78fa-4f8b-b19f-8d5caf9b202f";
+const AUTH_URL = import.meta.env.VITE_AUTH_URL || "";
 
 export interface User {
   id: number;
@@ -43,6 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchMe = async (t: string) => {
+    if (!AUTH_URL) {
+      localStorage.removeItem("moto_token");
+      setToken(null);
+      return;
+    }
     try {
       const res = await fetch(AUTH_URL, {
         method: "POST",
@@ -63,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (loginVal: string, password: string): Promise<{ error?: string }> => {
+    if (!AUTH_URL) return { error: "Сервис авторизации не настроен. Укажите VITE_AUTH_URL в .env" };
     try {
       const res = await fetch(AUTH_URL, {
         method: "POST",
@@ -83,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (form: { username: string; email: string; password: string; display_name: string }): Promise<{ error?: string }> => {
+    if (!AUTH_URL) return { error: "Сервис авторизации не настроен. Укажите VITE_AUTH_URL в .env" };
     try {
       const res = await fetch(AUTH_URL, {
         method: "POST",
@@ -103,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    if (token) {
+    if (token && AUTH_URL) {
       fetch(AUTH_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

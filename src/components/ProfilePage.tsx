@@ -9,12 +9,12 @@ const ACHIEVEMENTS = [
 ];
 
 const POSTS_PREVIEW = [
-  "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/3571fa90-01b9-48d3-a6a4-1a75e7a9ac09.jpg",
-  "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/ed071a00-b7e4-4512-8c06-68a6062dd2bd.jpg",
-  "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/3571fa90-01b9-48d3-a6a4-1a75e7a9ac09.jpg",
-  "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/ed071a00-b7e4-4512-8c06-68a6062dd2bd.jpg",
-  "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/3571fa90-01b9-48d3-a6a4-1a75e7a9ac09.jpg",
-  "https://cdn.poehali.dev/projects/4fe9d363-5216-44d6-8799-40a6f4aeed69/files/ed071a00-b7e4-4512-8c06-68a6062dd2bd.jpg",
+  "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=400&q=80",
+  "https://images.unsplash.com/photo-1591824438708-ce405f36ba3d?w=400&q=80",
+  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
+  "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&q=80",
+  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
+  "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=400&q=80",
 ];
 
 export default function ProfilePage() {

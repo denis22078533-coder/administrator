@@ -24,6 +24,8 @@ interface Props {
   hasLocalFile?: boolean;
   localFileName?: string;
   pendingSql?: { sql: string; explanation: string } | null;
+  hasGitHub?: boolean;
+  onOpenSettings?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -69,13 +71,53 @@ export default function ChatPanel({
   deployingId, deployResult, liveUrl, onOpenPreview,
   onLoadFromGitHub, loadingFromGitHub, currentFilePath,
   onLoadLocalFile, hasLocalFile, localFileName, pendingSql,
+  hasGitHub, onOpenSettings,
 }: Props) {
   const [value, setValue] = useState("");
   const [kbOffset, setKbOffset] = useState(0);
   const [lastMode, setLastMode] = useState<ChatMode>("chat");
   const [sqlCopied, setSqlCopied] = useState(false);
   const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; type: "image" | "text" } | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const toggleRecording = useCallback(() => {
+    const SpeechRecognitionAPI = (window as Window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition || (window as Window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      alert("Ваш браузер не поддерживает голосовой ввод. Попробуйте Chrome или Safari.");
+      return;
+    }
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = "ru-RU";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    let finalTranscript = value;
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalTranscript += (finalTranscript ? " " : "") + t;
+        else interim = t;
+      }
+      const display = finalTranscript + (interim ? (finalTranscript ? " " : "") + interim : "");
+      setValue(display);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+      }
+    };
+    recognition.onend = () => { setIsRecording(false); };
+    recognition.onerror = () => { setIsRecording(false); };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }, [isRecording, value]);
 
   const handleCopySql = () => {
     if (!pendingSql) return;
@@ -176,7 +218,22 @@ export default function ChatPanel({
           transition={{ duration: 0.4 }}
         />
         <span className="text-white/60 text-xs font-medium tracking-wide uppercase">AI Ассистент</span>
-
+        <div className="ml-auto flex items-center gap-1.5">
+          {hasGitHub ? (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25">
+              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+              <span className="text-emerald-400 text-[10px] font-medium">GitHub</span>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-colors"
+            >
+              <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-amber-400 text-[10px] font-medium">Настроить GitHub</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -406,6 +463,28 @@ export default function ChatPanel({
           )}
         </AnimatePresence>
 
+        {/* Recording indicator */}
+        <AnimatePresence>
+          {isRecording && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="mb-2 flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-1.5"
+            >
+              <motion.div
+                className="w-1.5 h-1.5 rounded-full bg-red-400"
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ repeat: Infinity, duration: 1 }}
+              />
+              <span className="text-red-300 text-xs font-medium">Слушаю... говорите по-русски</span>
+              <button onClick={toggleRecording} className="ml-auto text-red-400/60 hover:text-red-400 transition-colors">
+                <Icon name="X" size={12} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Mode hint */}
         <AnimatePresence>
           {modeHint && (
@@ -449,6 +528,31 @@ export default function ChatPanel({
             className="flex-1 bg-transparent text-white/80 placeholder-white/20 text-xs resize-none outline-none leading-relaxed disabled:opacity-50"
             style={{ maxHeight: 120 }}
           />
+          {/* Mic button */}
+          <motion.button
+            onClick={toggleRecording}
+            disabled={isActive}
+            className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all mb-0.5 disabled:opacity-30"
+            animate={{
+              backgroundColor: isRecording ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.05)",
+              borderColor: isRecording ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.08)",
+            }}
+            style={{ border: "1px solid" }}
+            whileTap={{ scale: 0.9 }}
+            title={isRecording ? "Остановить запись" : "Диктовать голосом"}
+          >
+            {isRecording ? (
+              <motion.div
+                animate={{ scale: [1, 1.3, 1] }}
+                transition={{ repeat: Infinity, duration: 0.8 }}
+              >
+                <Icon name="MicOff" size={12} className="text-red-400" />
+              </motion.div>
+            ) : (
+              <Icon name="Mic" size={12} className="text-white/40" />
+            )}
+          </motion.button>
+
           <motion.button
             onClick={handleSend}
             disabled={(!value.trim() && !attachedFile) || isActive}

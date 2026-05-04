@@ -29,16 +29,35 @@
       "bodyMatcher": "partial"
     },
     {
-      "name": "Wrong password returns 401",
+      "name": "Muravey get balance - new device",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "muravey_get", "device_id": "test-device-abc123"},
+      "expectedStatus": 200,
+      "expectedBody": {"can_send": true, "free_requests_left": 10},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Muravey spend request",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "muravey_spend", "device_id": "test-device-abc123"},
+      "expectedStatus": 200,
+      "expectedBody": {"can_send": true, "free_requests_left": 9},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Muravey create payment test mode",
       "method": "POST",
       "path": "/",
       "body": {
-        "action": "login",
-        "login": "test_moto_99@example.com",
-        "password": "wrongpass"
+        "action": "muravey_create_payment",
+        "device_id": "test-device-abc123",
+        "email": "test@example.com",
+        "package_id": "20req"
       },
-      "expectedStatus": 401,
-      "expectedBody": { "error": "string" },
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true, "test_mode": true, "requests_count": 20},
       "bodyMatcher": "partial"
     }
   ]

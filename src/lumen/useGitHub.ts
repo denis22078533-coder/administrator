@@ -7,7 +7,6 @@ export interface GitHubSettings {
   repo: string;
   filePath: string;
   siteUrl: string;
-  // Engine Git — второй репозиторий для исходников платформы
   engineToken: string;
   engineRepo: string;
   engineBranch: string;
@@ -38,8 +37,6 @@ export interface FetchResult {
   message?: string;
 }
 
-const GITHUB_DOWNLOAD_URL = "https://functions.poehali.dev/b9736970-2710-4830-9cbf-3b2f015371be";
-
 export function useGitHub() {
   const [ghSettings, setGhSettings] = useState<GitHubSettings>(load);
 
@@ -63,7 +60,9 @@ export function useGitHub() {
         return { ok: false, html: "", sha: "", filePath: path, message: `GitHub HTTP ${res.status}: ${errData.message || "неизвестная ошибка"}` };
       }
       const data = await res.json() as { content: string; sha: string };
-      const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ""))));
+      const b64 = data.content.replace(/\s/g, "");
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const decoded = new TextDecoder("utf-8").decode(bytes);
       return { ok: true, html: decoded, sha: data.sha, filePath: path };
     } catch (e) {
       return { ok: false, html: "", sha: "", filePath: path, message: String(e) };
@@ -91,9 +90,15 @@ export function useGitHub() {
         const data = await getRes.json() as { sha: string };
         actualSha = data.sha;
       }
-    } catch (_e) { /* файл новый */ }
+    } catch (_e) { /* новый файл */ }
 
-    const content = btoa(unescape(encodeURIComponent(html)));
+    const utf8Bytes = new TextEncoder().encode(html);
+    const b64Chunks: string[] = [];
+    const chunkSize = 8192;
+    for (let i = 0; i < utf8Bytes.length; i += chunkSize) {
+      b64Chunks.push(String.fromCharCode(...utf8Bytes.slice(i, i + chunkSize)));
+    }
+    const content = btoa(b64Chunks.join(""));
 
     const doPut = async (shaToUse: string) => {
       const reqBody: Record<string, string> = {
@@ -139,34 +144,155 @@ export function useGitHub() {
     }
   }, [ghSettings]);
 
-  // ── Engine Push — выгружает исходники платформы в GitHub репозиторий ──────
+  // ── Engine Push — скачивает ZIP проекта из GitHub и пушит файлы напрямую ──
   const syncEngine = useCallback(async (
     onProgress?: (msg: string) => void
   ): Promise<{ ok: boolean; message: string }> => {
     const token = ghSettings.engineToken || ghSettings.token;
-    const repo = ghSettings.engineRepo;
+    const targetRepo = ghSettings.engineRepo;
     const branch = ghSettings.engineBranch || "main";
 
     if (!token) return { ok: false, message: "Укажите Engine GitHub Token в настройках" };
-    if (!repo) return { ok: false, message: "Укажите Engine Repository (например: user/moi-lumin)" };
+    if (!targetRepo) return { ok: false, message: "Укажите Engine Repository (например: user/moi-umniy-lumin)" };
 
-    onProgress?.("Выгружаю файлы платформы в GitHub...");
+    const sourceRepo = targetRepo;
+    const sourceToken = token;
 
-    const res = await fetch(GITHUB_DOWNLOAD_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "push", token, repo, branch }),
+    // ── Шаг 1: скачиваем ZIP исходников напрямую из GitHub ───────────────────
+    onProgress?.(`Скачиваю исходники из ${sourceRepo}...`);
+    const zipApiUrl = `https://api.github.com/repos/${sourceRepo}/zipball/${branch}`;
+    const zipRes = await fetch(zipApiUrl, {
+      headers: { Authorization: `Bearer ${sourceToken}`, Accept: "application/vnd.github+json" },
     });
-    const data = await res.json() as { ok?: boolean; pushed?: number; total?: number; errors?: string[]; message?: string; error?: string };
-    if (!res.ok || !data.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    if (!zipRes.ok) {
+      const errData = await zipRes.json().catch(() => ({})) as { message?: string };
+      throw new Error(`Не удалось скачать ZIP исходников (HTTP ${zipRes.status}): ${errData.message || ""}`);
+    }
+    const zipBuffer = await zipRes.arrayBuffer();
+    const zipBytes = new Uint8Array(zipBuffer);
 
-    const errNote = data.errors && data.errors.length > 0
-      ? `\n\nПропущено файлов: ${data.errors.length}. Первые ошибки:\n${data.errors.slice(0, 3).join("\n")}`
+    // ── Шаг 2: распаковываем ZIP в браузере ──────────────────────────────────
+    onProgress?.("Распаковываю архив...");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const JSZip = (window as any).JSZip;
+    if (!JSZip) throw new Error("JSZip не загружен. Перезагрузите страницу и попробуйте снова.");
+
+    const zip = await JSZip.loadAsync(zipBytes.buffer);
+
+    const INCLUDE_DIRS = ["src/", "backend/", "db_migrations/", "public/"];
+    const INCLUDE_ROOT = ["package.json", "vite.config.ts", "vite.config.js",
+      "tailwind.config.ts", "tailwind.config.js", "tsconfig.json",
+      "tsconfig.app.json", "tsconfig.node.json", "postcss.config.js",
+      "postcss.config.cjs", "index.html"];
+    const SKIP_DIRS = ["node_modules/", ".git/", "dist/", "build/", "__pycache__/"];
+    const SKIP_EXT = [".pyc", ".pyo", ".log"];
+    const MAX_SIZE = 400 * 1024;
+
+    const filesToPush: { path: string; content_b64: string }[] = [];
+
+    let stripPrefix = "";
+    zip.forEach((relativePath: string) => {
+      if (!stripPrefix && relativePath.includes("/")) {
+        stripPrefix = relativePath.split("/")[0] + "/";
+      }
+    });
+
+    const filePromises: Promise<void>[] = [];
+    zip.forEach((relativePath: string, zipEntry: { dir: boolean; async: (t: string) => Promise<Uint8Array> }) => {
+      if (zipEntry.dir) return;
+
+      const cleanPath = stripPrefix ? relativePath.replace(stripPrefix, "") : relativePath;
+      if (!cleanPath) return;
+
+      if (SKIP_DIRS.some(d => cleanPath.includes(d))) return;
+
+      const ext = cleanPath.slice(cleanPath.lastIndexOf(".")).toLowerCase();
+      if (SKIP_EXT.includes(ext)) return;
+
+      const isRootFile = INCLUDE_ROOT.includes(cleanPath);
+      const isInDir = INCLUDE_DIRS.some(d => cleanPath.startsWith(d));
+      if (!isRootFile && !isInDir) return;
+
+      filePromises.push(
+        zipEntry.async("uint8array").then((bytes: Uint8Array) => {
+          if (bytes.length > MAX_SIZE) return;
+          const chunks: string[] = [];
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            chunks.push(String.fromCharCode(...bytes.slice(i, i + chunkSize)));
+          }
+          filesToPush.push({ path: cleanPath, content_b64: btoa(chunks.join("")) });
+        })
+      );
+    });
+
+    await Promise.all(filePromises);
+
+    if (filesToPush.length === 0) {
+      throw new Error(`Не найдено файлов для выгрузки. Проверьте что в репозитории ${sourceRepo} есть папки src/, backend/`);
+    }
+
+    onProgress?.(`Найдено ${filesToPush.length} файлов. Выгружаю в ${targetRepo}...`);
+
+    // ── Шаг 3: пушим файлы напрямую в GitHub через Contents API ─────────────
+    let pushed = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < filesToPush.length; i++) {
+      const file = filesToPush[i];
+      if (i % 5 === 0) {
+        onProgress?.(`Выгружаю файлы: ${i + 1}/${filesToPush.length} — ${file.path}...`);
+      }
+
+      const fileApiUrl = `https://api.github.com/repos/${targetRepo}/contents/${file.path}`;
+
+      // Получаем текущий SHA (если файл существует)
+      let fileSha = "";
+      try {
+        const getRes = await fetch(`${fileApiUrl}?ref=${branch}`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+        });
+        if (getRes.ok) {
+          const data = await getRes.json() as { sha: string };
+          fileSha = data.sha;
+        }
+      } catch (_e) { /* новый файл */ }
+
+      const reqBody: Record<string, string> = {
+        message: `Lumen sync: ${file.path}`,
+        content: file.content_b64,
+        branch,
+      };
+      if (fileSha) reqBody.sha = fileSha;
+
+      try {
+        const putRes = await fetch(fileApiUrl, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(reqBody),
+        });
+        if (putRes.ok) {
+          pushed++;
+        } else {
+          const d = await putRes.json().catch(() => ({})) as { message?: string };
+          errors.push(`${file.path}: ${d.message || `HTTP ${putRes.status}`}`);
+        }
+      } catch (e) {
+        errors.push(`${file.path}: ${String(e)}`);
+      }
+    }
+
+    const errNote = errors.length > 0
+      ? `\n\n⚠️ Пропущено: ${errors.length} файлов.\nПервые ошибки:\n${errors.slice(0, 3).join("\n")}`
       : "";
 
     return {
-      ok: true,
-      message: `${data.message || "Выгрузка завершена"}${errNote}\n\nРепозиторий: ${repo} (ветка ${branch})`,
+      ok: pushed > 0,
+      message: `✅ Выгружено ${pushed} из ${filesToPush.length} файлов в \`${targetRepo}\` (ветка \`${branch}\`)${errNote}`,
     };
   }, [ghSettings]);
 

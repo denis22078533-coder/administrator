@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Icon from "@/components/ui/icon";
 import LumenTopBar from "./LumenTopBar";
 import LivePreview from "./LivePreview";
 import ChatPanel, { ChatMode } from "./ChatPanel";
@@ -10,6 +11,8 @@ import BottomNav, { Tab } from "./BottomNav";
 import AntWorker from "./AntWorker";
 import { useLumenAuth } from "./useLumenAuth";
 import { useGitHub } from "./useGitHub";
+import { useMuraveyBalance } from "./useMuraveyBalance";
+import PaywallModal from "./PaywallModal";
 
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
 type MobileTab = "chat" | "preview";
@@ -27,14 +30,16 @@ interface Settings {
   model: string;
   baseUrl: string;
   proxyUrl: string;
+  customPrompt?: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
   provider: "openai",
   model: "gpt-4o-mini",
-  baseUrl: import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://proxyapi.ru",
-  proxyUrl: import.meta.env.VITE_AI_PROXY_URL || "https://functions.poehali.dev/60463e71-1a34-44dc-bde3-90a47fc07cba",
+  baseUrl: import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai",
+  proxyUrl: "",
+  customPrompt: "",
 };
 
 
@@ -88,17 +93,39 @@ Then implement.
 ${PROJECT_STRUCTURE}`;
 
 const CREATE_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}
-## Task: Create a complete website
+## Task: Create a STUNNING, professional-grade website
 Output ONLY a full standalone HTML document (<!DOCTYPE html>...</html>). No explanations, no markdown fences.
-Technical requirements:
+
+## DESIGN QUALITY — THIS IS YOUR TOP PRIORITY:
+- Create websites worthy of Awwwards, Dribbble, Behance — NEVER generic templates
+- Bold, expressive typography: large hero headings (text-6xl/7xl+), clear hierarchy
+- Rich color palette: use gradients, soft shadows, and accent colors — NEVER plain white/gray defaults
+- CSS animations: fade-in on scroll (Intersection Observer), smooth hover transitions, subtle parallax
+- Cards with depth: border-radius, box-shadow, hover lift effects (transform: translateY(-4px))
+- Glassmorphism where fitting: backdrop-filter: blur(), semi-transparent backgrounds
+- Micro-interactions: button hover, nav link underlines, icon rotations
+
+## MANDATORY SITE STRUCTURE (all sections, every time):
+1. **Navigation** — sticky, logo + menu links + CTA button, blur backdrop
+2. **Hero** — full-screen or tall, punchy headline, subheadline, 2 CTA buttons, background visual (gradient/image/pattern)
+3. **Social proof** — logos or numbers (e.g., "500+ clients", "10 years on market", "98% satisfaction")
+4. **Features/Services** — 3-6 cards with Lucide icons, title, description
+5. **About / How it works** — with steps or story
+6. **Portfolio / Cases** — if applicable (grid of cards with hover overlay)
+7. **Testimonials** — 2-3 cards with name, role, avatar (colored initials circle), quote
+8. **FAQ** — accordion, 4-6 questions
+9. **CTA Section** — bold background, compelling headline, form or button
+10. **Footer** — logo, nav links, contacts, social icons, copyright
+
+## Technical requirements:
 - Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-- Lucide icons via CDN if needed: <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-- Google Fonts via CDN for typography if needed
-- Default to light theme (white/light-gray background, dark text) unless explicitly asked for dark
-- All JS inline in <script> tags, no external files
-- Fully responsive, works on mobile and desktop
-- IMAGES: If ready image URLs are provided — use them directly. No placeholder images if real URLs exist.
-- For forms/payments — add skeleton structure with comments showing WHERE to integrate (ЮKassa/Robokassa/СДЭК)`;
+- Lucide icons via CDN: <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+- Google Fonts via CDN — always pick 1-2 premium fonts matching the brand tone
+- All JS inline in <script> tags. Fully responsive mobile-first
+- Scroll animations: use IntersectionObserver to fade-in sections on scroll
+- IMAGES: Use provided URLs directly. For placeholders use gradient backgrounds, NOT external image services
+- For forms/payments — skeleton with clear comments for ЮKassa/Robokassa/СДЭК integration
+- Write REAL persuasive copy — not "Lorem ipsum" or generic placeholders. Make it specific and compelling.`;
 
 const EDIT_SYSTEM_PROMPT_FULL = (currentHtml: string) =>
   `${SENIOR_DEV_ROLE}
@@ -187,8 +214,20 @@ Rules:
 let msgCounter = 0;
 
 export default function LumenApp() {
-  const { authed, login, logout } = useLumenAuth();
+  const { loggedIn, authed, login, adminLogin, logout } = useLumenAuth();
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
+
+  // Баланс запросов (только для обычных пользователей)
+  const {
+    balance: muraveyBalance,
+    spendRequest,
+    createPayment,
+    checkPayment,
+    confirmTestPayment,
+    restoreByEmail,
+    fetchBalance,
+  } = useMuraveyBalance(authed);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   const liveUrl = (() => {
     if (ghSettings.siteUrl?.trim()) {
@@ -222,6 +261,15 @@ export default function LumenApp() {
   const [selfEditMode, setSelfEditMode] = useState<boolean>(() => {
     try { return localStorage.getItem("lumen_self_edit") === "1"; } catch { return false; }
   });
+
+  // Публичный ИИ-режим — разрешает всем пользователям использовать чат
+  const [publicAiEnabled, setPublicAiEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem("lumen_public_ai") === "1"; } catch { return false; }
+  });
+  const handlePublicAiToggle = (v: boolean) => {
+    setPublicAiEnabled(v);
+    try { localStorage.setItem("lumen_public_ai", v ? "1" : "0"); } catch (_e) { /* ignore */ }
+  };
   const handleSelfEditToggle = (v: boolean) => {
     setSelfEditMode(v);
     try { localStorage.setItem("lumen_self_edit", v ? "1" : "0"); } catch { /* ignore */ }
@@ -536,121 +584,207 @@ export default function LumenApp() {
     return history;
   };
 
-  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false): Promise<string> => {
+  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 120_000): Promise<string> => {
     const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
-    const baseUrl = rawBase || "https://proxyapi.ru";
     const isOpenAI = settings.provider === "openai";
 
     const chatMessages = useHistory
       ? buildChatHistory(userText)
       : [{ role: "user", content: userText }];
 
-    const requestBody = isOpenAI
-      ? {
-          __provider__: "openai",
-          __base_url__: baseUrl,
-          __api_key__: settings.apiKey.trim(),
-          model: settings.model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...chatMessages,
-          ],
-          max_tokens: 16000,
-        }
-      : {
-          __provider__: "claude",
-          __base_url__: baseUrl,
-          __api_key__: settings.apiKey.trim(),
-          model: settings.model,
-          max_tokens: 16000,
-          system: systemPrompt,
-          messages: chatMessages,
-        };
+    const MODEL_MAX_TOKENS: Record<string, number> = {
+      "gpt-4o-mini": 16000,
+      "gpt-4o": 16000,
+      "gpt-4-turbo": 16000,
+      "o3-mini": 16000,
+      "o1-mini": 16000,
+    };
+    const maxTokens = MODEL_MAX_TOKENS[settings.model] ?? 32000;
 
-    const proxyUrl = (settings.proxyUrl || "").trim() || (import.meta.env.VITE_AI_PROXY_URL || "https://functions.poehali.dev/60463e71-1a34-44dc-bde3-90a47fc07cba");
+    // Определяем endpoint и заголовки для прямого вызова API
+    const PROXYAPI_HOSTS = new Set(["proxyapi.ru", "www.proxyapi.ru", "api.proxyapi.ru"]);
+
+    let endpoint: string;
+    let reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    let requestBody: Record<string, unknown>;
+
+    if (isOpenAI) {
+      const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+      if (PROXYAPI_HOSTS.has(parsedHost)) {
+        endpoint = "https://api.proxyapi.ru/openai/v1/chat/completions";
+      } else if (base.endsWith("/chat/completions")) {
+        endpoint = base;
+      } else if (base.endsWith("/v1")) {
+        endpoint = base + "/chat/completions";
+      } else {
+        endpoint = base + "/v1/chat/completions";
+      }
+      reqHeaders["Authorization"] = `Bearer ${settings.apiKey.trim()}`;
+      requestBody = {
+        model: settings.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...chatMessages,
+        ],
+        max_tokens: maxTokens,
+      };
+    } else {
+      const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+      if (PROXYAPI_HOSTS.has(parsedHost)) {
+        endpoint = "https://api.proxyapi.ru/anthropic/v1/messages";
+      } else if (base.endsWith("/messages")) {
+        endpoint = base;
+      } else if (base.endsWith("/v1")) {
+        endpoint = base + "/messages";
+      } else {
+        endpoint = base + "/v1/messages";
+      }
+      reqHeaders["x-api-key"] = settings.apiKey.trim();
+      reqHeaders["anthropic-version"] = "2023-06-01";
+      requestBody = {
+        model: settings.model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: chatMessages,
+      };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     let res: Response;
     try {
-      res = await fetch(proxyUrl, {
+      res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: reqHeaders,
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
     } catch (e) {
+      clearTimeout(timeoutId);
+      if ((e as Error)?.name === "AbortError") {
+        throw new Error(`Превышено время ожидания (${timeoutMs / 1000} сек). Попробуйте ещё раз или упростите запрос.`);
+      }
       throw new Error(`Сетевая ошибка: ${String(e)}`);
     }
 
-    // Читаем ответ с прогрессом
     const reader = res.body?.getReader();
     const decoder = new TextDecoder();
     let rawText = "";
     if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        rawText += decoder.decode(value, { stream: true });
-        if (onProgress) onProgress(rawText.length);
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          rawText += decoder.decode(value, { stream: true });
+          if (onProgress) onProgress(rawText.length);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        reader.releaseLock();
       }
     } else {
       rawText = await res.text();
+      clearTimeout(timeoutId);
     }
 
     let data: Record<string, unknown>;
     try { data = JSON.parse(rawText); } catch {
-      throw new Error(`Сервер вернул не JSON (HTTP ${res.status}): ${rawText.slice(0, 200)}`);
+      throw new Error(`Сервер вернул не JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
     }
 
     if (!res.ok || data.error) {
       const errMsg = data.error as { message?: string } | string | undefined;
       const detail = typeof errMsg === "string" ? errMsg : errMsg?.message;
-      throw new Error(`HTTP ${res.status}: ${detail || rawText.slice(0, 200)}`);
+      throw new Error(`HTTP ${res.status}: ${detail || rawText.slice(0, 300)}`);
     }
 
     if (isOpenAI) {
-      return (data.choices as { message: { content: string } }[])?.[0]?.message?.content ?? "";
+      const content = (data.choices as { message: { content: string } }[])?.[0]?.message?.content ?? "";
+      if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
+      return content;
     } else {
-      return (data.content as { text: string }[])?.[0]?.text ?? "";
+      const content = (data.content as { text: string }[])?.[0]?.text ?? "";
+      if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
+      return content;
     }
   };
 
-  const IMAGE_GENERATE_URL = "https://functions.poehali.dev/0f178db7-a08a-4911-8f10-5f45a0d585a3";
+  // Генерация изображений через pollinations.ai (бесплатно, без API ключа)
+  // или через свой сервис, если задан VITE_IMAGE_GENERATE_URL
+  const IMAGE_GENERATE_URL = import.meta.env.VITE_IMAGE_GENERATE_URL || "";
 
   const handleSendImage = useCallback(async (text: string) => {
     setCycleStatus("generating");
     setCycleLabel("Генерирую картинку...");
     try {
-      const r = await fetch(IMAGE_GENERATE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }),
-      });
-      const d = await r.json();
-      if (d.url) {
-        setCycleStatus("done");
-        setCycleLabel("");
-        setMessages(prev => [...prev, {
-          id: ++msgCounter,
-          role: "assistant",
-          text: `Картинка готова!`,
-          html: `__IMAGE__:${d.url}`,
-        }]);
+      let imageUrl: string;
+
+      if (IMAGE_GENERATE_URL) {
+        // Используем свой сервис генерации (если задан VITE_IMAGE_GENERATE_URL)
+        const r = await fetch(IMAGE_GENERATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text }),
+        });
+        const d = await r.json();
+        if (!d.url) throw new Error(d.error || "Ошибка генерации");
+        imageUrl = d.url;
       } else {
-        throw new Error(d.error || "Ошибка генерации");
+        // Pollinations.ai — бесплатный сервис, без API ключа
+        const encodedPrompt = encodeURIComponent(text);
+        imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&nologo=true&enhance=true`;
+        // Проверяем доступность изображения
+        const check = await fetch(imageUrl, { method: "HEAD" });
+        if (!check.ok) throw new Error(`Ошибка генерации: HTTP ${check.status}`);
       }
+
+      setCycleStatus("done");
+      setCycleLabel("");
+      setMessages(prev => [...prev, {
+        id: ++msgCounter,
+        role: "assistant",
+        text: `Картинка готова!`,
+        html: `__IMAGE__:${imageUrl}`,
+      }]);
     } catch (err) {
       setCycleStatus("error");
       setCycleLabel("");
       const errText = err instanceof Error ? err.message : "Неизвестная ошибка";
       setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
     }
-  }, []);
+  }, [IMAGE_GENERATE_URL]);
 
-  const readFileFromGitHub = async (path: string, token: string, repo: string, branch: string): Promise<string | null> => {
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`;
-    const res = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } });
-    if (!res.ok) return null;
-    const data = await res.json() as { content: string };
-    return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ""))));
+  const readFileFromGitHub = async (path: string, token: string, repo: string, branch: string): Promise<{ content: string; error?: never } | { content?: never; error: string }> => {
+    if (!repo || !token) return { error: "Не настроен Engine-репозиторий или токен. Откройте Настройки → Engine GitHub." };
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${encodeURIComponent(branch)}`;
+    let res: Response;
+    try {
+      res = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } });
+    } catch (e) {
+      return { error: `Сетевая ошибка при чтении ${path}: ${String(e)}` };
+    }
+    if (res.status === 401) return { error: `Ошибка авторизации (401). Проверьте токен GitHub в настройках Engine.` };
+    if (res.status === 403) return { error: `Нет доступа (403) к файлу \`${path}\`. Проверьте права токена.` };
+    if (res.status === 404) return { error: `Файл не найден (404): \`${path}\` в репозитории ${repo}` };
+    if (!res.ok) return { error: `GitHub API вернул HTTP ${res.status} для \`${path}\`` };
+
+    let data: { content?: string; type?: string; message?: string };
+    try { data = await res.json(); } catch { return { error: `Не удалось разобрать ответ GitHub для \`${path}\`` }; }
+
+    if (data.message) return { error: `GitHub: ${data.message}` };
+    if (!data.content) return { error: `Файл \`${path}\` пуст или является директорией` };
+
+    // Корректное декодирование base64 → UTF-8 (работает с кириллицей и любыми символами)
+    try {
+      const b64 = data.content.replace(/\s/g, "");
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      return { content: new TextDecoder("utf-8").decode(bytes) };
+    } catch (e) {
+      return { error: `Ошибка декодирования файла \`${path}\`: ${String(e)}` };
+    }
   };
 
   const handleSendChat = useCallback(async (text: string) => {
@@ -662,10 +796,18 @@ export default function LumenApp() {
     const branch = ghSettings.branch || "main";
     try {
       const repoInfo = token && repo
-        ? `\n\nПодключён GitHub репозиторий: ${repo} (ветка: ${branch}). Если нужно прочитать файл из репозитория — используй action-блок:\n\`\`\`action\n{"action":"read","path":"src/App.tsx"}\n\`\`\``
+        ? `\n\nПодключён GitHub репозиторий: ${repo} (ветка: ${branch}).
+Доступны action-блоки для работы с файлами:
+- Список файлов в директории: \`{"action":"list","path":"src/lumen"}\`
+- Прочитать один файл: \`{"action":"read","path":"src/App.tsx"}\`
+- Прочитать несколько файлов сразу: \`{"action":"read_multiple","paths":["src/App.tsx","src/lumen/LumenApp.tsx"]}\`
+
+Отвечай только один action-блок за раз. После получения файлов — сразу выполни задачу.`
         : "";
-      const chatSystemPrompt = `Ты дружелюбный AI-ассистент Lumen. Отвечай кратко и по делу на русском языке. Помогай с вопросами о сайтах, бизнесе, маркетинге и всём остальном.${repoInfo}
+      const chatSystemPrompt = `Ты дружелюбный AI-ассистент Муравей. Отвечай кратко и по делу на русском языке. Помогай с вопросами о сайтах, бизнесе, маркетинге и всём остальном.${repoInfo}
 ${PROJECT_STRUCTURE}`;
+
+      // ── Шаг 1: первый вызов ИИ ────────────────────────────────────────────
       const response = await callAI(
         chatSystemPrompt,
         text,
@@ -673,32 +815,71 @@ ${PROJECT_STRUCTURE}`;
         true
       );
 
-      // Обрабатываем action read — ИИ хочет прочитать файл
+      // ── Шаг 2: обрабатываем action-блоки ─────────────────────────────────
       const actionMatch = response.match(/```action\s*([\s\S]*?)```/);
       if (actionMatch && token && repo) {
-        let actionData: { action: string; path?: string };
+        let actionData: { action: string; path?: string; paths?: string[] };
         try { actionData = JSON.parse(actionMatch[1].trim()); } catch { actionData = { action: "none" }; }
+        const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
 
-        if (actionData.action === "read" && actionData.path) {
-          setCycleLabel("Читаю файл...");
-          const fileContent = await readFileFromGitHub(actionData.path, token, repo, branch);
-          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
-          if (fileContent !== null) {
-            const sizeStr = fileContent.length < 1024
-              ? `${fileContent.length} байт`
-              : `${(fileContent.length / 1024).toFixed(1)} КБ`;
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал файл \`${actionData.path}\` (${sizeStr}). Анализирую...`.trim() }]);
-            const response2 = await callAI(
-              chatSystemPrompt,
-              `Файл \`${actionData.path}\`:\n\`\`\`\n${fileContent}\n\`\`\`\n\nТеперь выполни оригинальный запрос: ${text}`,
-              (chars) => setCycleLabel(`Анализирую... ${chars} симв.`),
-              false
-            );
+        // action: list
+        if (actionData.action === "list" && actionData.path) {
+          setCycleLabel(`Читаю директорию ${actionData.path}...`);
+          const listing = await listDirFromGitHub(actionData.path, token, repo, branch);
+          if (listing) {
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nСодержимое \`${actionData.path}\`:\n\`\`\`\n${listing}\n\`\`\``.trim() }]);
+            setCycleLabel("Анализирую список...");
+            const response2 = await callAI(chatSystemPrompt, `Директория ${actionData.path}:\n${listing}\n\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           } else {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nНе удалось прочитать файл \`${actionData.path}\` — файл не найден или нет доступа.`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nНе удалось прочитать директорию \`${actionData.path}\`.`.trim() }]);
+          }
+          return;
+        }
+
+        // action: read_multiple
+        if (actionData.action === "read_multiple" && actionData.paths?.length) {
+          const filesContent: string[] = [];
+          const errors: string[] = [];
+          for (let i = 0; i < actionData.paths.length; i++) {
+            const p = actionData.paths[i];
+            setCycleLabel(`Читаю файл ${i + 1}/${actionData.paths.length}: ${p}`);
+            const result = await readFileFromGitHub(p, token, repo, branch);
+            if (result.content !== undefined) {
+              const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
+              filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
+            } else {
+              errors.push(`⚠️ ${p}: ${result.error}`);
+              filesContent.push(`### ${p}\n[${result.error}]`);
+            }
+          }
+          const errNote = errors.length ? `\n\n${errors.join("\n")}` : "";
+          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал ${filesContent.length} файл(ов).${errNote}\nАнализирую...`.trim() }]);
+          setCycleLabel(`Анализирую ${filesContent.length} файлов...`);
+          const response2 = await callAI(chatSystemPrompt, `Файлы:\n\n${filesContent.join("\n\n")}\n\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
+          setCycleStatus("done"); setCycleLabel("");
+          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
+          return;
+        }
+
+        // action: read (один файл)
+        if (actionData.action === "read" && actionData.path) {
+          setCycleLabel(`Читаю ${actionData.path}...`);
+          const result = await readFileFromGitHub(actionData.path, token, repo, branch);
+          if (result.content !== undefined) {
+            const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+            const truncated = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал \`${actionData.path}\` (${sizeStr}). Анализирую...`.trim() }]);
+            setCycleLabel("Анализирую...");
+            const response2 = await callAI(chatSystemPrompt, `Файл \`${actionData.path}\`:\n\`\`\`\n${truncated}\n\`\`\`\n\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
+            setCycleStatus("done"); setCycleLabel("");
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
+          } else {
+            setCycleStatus("error"); setCycleLabel("");
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ ${result.error}`.trim() }]);
           }
           return;
         }
@@ -765,6 +946,15 @@ ${PROJECT_STRUCTURE}`;
     const engineRepo = ghSettings.engineRepo;
     const engineBranch = ghSettings.engineBranch || "main";
 
+    // Проверяем обязательные настройки Engine
+    if (!engineToken || !engineRepo) {
+      setMessages(prev => [...prev, {
+        id: ++msgCounter, role: "assistant",
+        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\n\nОткройте **Настройки → Self-Edit / Engine GitHub** и заполните:\n- Engine Token (GitHub Personal Access Token)\n- Engine Repository (например: `your-user/your-repo`)\n- Engine Branch (обычно `main`)",
+      }]);
+      return;
+    }
+
     setCycleStatus("generating");
     setCycleLabel("Self-Edit: думаю...");
     try {
@@ -802,51 +992,109 @@ ${PROJECT_STRUCTURE}`;
           for (let i = 0; i < actionData.paths.length; i++) {
             const p = actionData.paths[i];
             setCycleLabel(`Self-Edit: читаю ${i + 1}/${actionData.paths.length}...`);
-            const content = await readFileFromGitHub(p, engineToken, engineRepo, engineBranch);
-            if (content !== null) {
-              const sizeStr = content.length < 1024 ? `${content.length} байт` : `${(content.length / 1024).toFixed(1)} КБ`;
-              filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${content}\n\`\`\``);
+            const result = await readFileFromGitHub(p, engineToken, engineRepo, engineBranch);
+            if (result.content !== undefined) {
+              const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
+              filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
             } else {
-              filesContent.push(`### ${p}\n[файл не найден]`);
+              filesContent.push(`### ${p}\n[${result.error}]`);
             }
           }
           setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал ${filesContent.length} файл(ов). Анализирую...`.trim() }]);
-          const response2 = await callAI(systemPrompt, `Содержимое файлов:\n\n${filesContent.join("\n\n")}\n\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), false);
+          const response2 = await callAI(systemPrompt, `Содержимое файлов:\n\n${filesContent.join("\n\n")}\n\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
           setCycleStatus("done"); setCycleLabel("");
           setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           return;
         }
 
         if (actionData.action === "read" && actionData.path) {
-          setCycleLabel("Self-Edit: читаю файл...");
-          const fileContent = await readFileFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
-          if (fileContent !== null) {
-            const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
-            const sizeStr = fileContent.length < 1024 ? `${fileContent.length} байт` : `${(fileContent.length / 1024).toFixed(1)} КБ`;
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал файл \`${actionData.path}\` (${sizeStr}). Продолжаю...`.trim() }]);
-            const response2 = await callAI(systemPrompt, `Файл ${actionData.path}:\n\`\`\`\n${fileContent}\n\`\`\`\n\nТеперь выполни оригинальный запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
+          setCycleLabel(`Self-Edit: читаю ${actionData.path}...`);
+          const result = await readFileFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
+          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+          if (result.content !== undefined) {
+            const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+            const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n📄 \`${actionData.path}\` (${sizeStr}) — прочитан. Анализирую...`.trim() }]);
+            setCycleLabel("Self-Edit: анализирую...");
+            const response2 = await callAI(systemPrompt, `Файл ${actionData.path}:\n\`\`\`\n${body}\n\`\`\`\n\nТеперь выполни оригинальный запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
+            return;
+          } else {
+            setCycleStatus("error"); setCycleLabel("");
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ ${result.error}`.trim() }]);
             return;
           }
         }
 
         if (actionData.action === "write" && actionData.path && actionData.content) {
-          setCycleLabel("Self-Edit: сохраняю файл...");
-          const apiUrl = `https://api.github.com/repos/${engineRepo}/contents/${actionData.path}`;
-          // Получаем текущий SHA
+          setCycleLabel(`Self-Edit: сохраняю ${actionData.path}...`);
+          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+          const apiUrl = `https://api.github.com/repos/${engineRepo}/contents/${encodeURIComponent(actionData.path).replace(/%2F/g, "/")}`;
+
+          // Получаем текущий SHA (нужен для обновления существующего файла)
           let sha = "";
           try {
-            const getRes = await fetch(`${apiUrl}?ref=${engineBranch}`, { headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json" } });
-            if (getRes.ok) { const d = await getRes.json() as { sha: string }; sha = d.sha; }
-          } catch { /* новый файл */ }
-          const content = btoa(unescape(encodeURIComponent(actionData.content)));
-          const reqBody: Record<string, string> = { message: `Lumen Self-Edit: обновил ${actionData.path}`, content, branch: engineBranch };
+            const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(engineBranch)}`, {
+              headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json" },
+            });
+            if (getRes.ok) {
+              const d = await getRes.json() as { sha?: string };
+              sha = d.sha || "";
+            } else if (getRes.status !== 404) {
+              const d = await getRes.json().catch(() => ({})) as { message?: string };
+              setCycleStatus("error"); setCycleLabel("");
+              setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Ошибка получения SHA файла \`${actionData.path}\`: HTTP ${getRes.status} ${d.message || ""}`.trim() }]);
+              return;
+            }
+          } catch (e) {
+            setCycleStatus("error"); setCycleLabel("");
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Сетевая ошибка при чтении SHA: ${String(e)}`.trim() }]);
+            return;
+          }
+
+          // Правильное кодирование UTF-8 → base64 через TextEncoder
+          const utf8Bytes = new TextEncoder().encode(actionData.content);
+          const b64Chunks: string[] = [];
+          const chunkSize = 8192;
+          for (let i = 0; i < utf8Bytes.length; i += chunkSize) {
+            b64Chunks.push(String.fromCharCode(...utf8Bytes.slice(i, i + chunkSize)));
+          }
+          const contentB64 = btoa(b64Chunks.join(""));
+
+          const reqBody: Record<string, string> = {
+            message: `Муравей: обновил ${actionData.path}`,
+            content: contentB64,
+            branch: engineBranch,
+          };
           if (sha) reqBody.sha = sha;
-          const putRes = await fetch(apiUrl, { method: "PUT", headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify(reqBody) });
-          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+
+          let putRes: Response;
+          try {
+            putRes = await fetch(apiUrl, {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${engineToken}`,
+                Accept: "application/vnd.github+json",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(reqBody),
+            });
+          } catch (e) {
+            setCycleStatus("error"); setCycleLabel("");
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Сетевая ошибка при записи файла: ${String(e)}`.trim() }]);
+            return;
+          }
+
+          const putData = await putRes.json().catch(() => ({})) as { message?: string; content?: { html_url?: string } };
           setCycleStatus(putRes.ok ? "done" : "error"); setCycleLabel("");
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: putRes.ok ? `${cleanResponse}\n\nФайл \`${actionData.path}\` успешно обновлён в ${engineRepo}.` : `${cleanResponse}\n\nОшибка сохранения файла: HTTP ${putRes.status}` }]);
+          if (putRes.ok) {
+            const fileUrl = putData.content?.html_url ? `\n🔗 ${putData.content.html_url}` : "";
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n✅ Файл \`${actionData.path}\` записан в \`${engineRepo}\` (ветка \`${engineBranch}\`).${fileUrl}`.trim() }]);
+          } else {
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Ошибка записи \`${actionData.path}\`: HTTP ${putRes.status} — ${putData.message || "неизвестная ошибка"}`.trim() }]);
+          }
           return;
         }
       }
@@ -861,6 +1109,16 @@ ${PROJECT_STRUCTURE}`;
 
   const handleSend = useCallback(async (text: string, mode: ChatMode = "site") => {
     abortRef.current = false;
+
+    // Проверяем баланс для обычных пользователей
+    if (!authed) {
+      const canSend = await spendRequest();
+      if (!canSend) {
+        setPaywallOpen(true);
+        return;
+      }
+    }
+
     const userMsg: Message = { id: ++msgCounter, role: "user", text };
     setMessages(prev => [...prev, userMsg]);
     setDeployResult(null);
@@ -893,11 +1151,12 @@ ${PROJECT_STRUCTURE}`;
     try {
       // ── Шаг 1: читаем текущий код ─────────────────────────────────────────
       let currentHtml = "";
-      let systemPrompt = CREATE_SYSTEM_PROMPT;
+      const customAddition = settings.customPrompt?.trim() ? `\n\n## Дополнительные инструкции от владельца:\n${settings.customPrompt.trim()}` : "";
+      let systemPrompt = CREATE_SYSTEM_PROMPT + customAddition;
 
       if (fullCodeContext) {
         currentHtml = fullCodeContext.html;
-        systemPrompt = LOCAL_FILE_EDIT_PROMPT(currentHtml, fullCodeContext.fileName);
+        systemPrompt = LOCAL_FILE_EDIT_PROMPT(currentHtml, fullCodeContext.fileName) + customAddition;
       } else if (ghSettings.token && ghSettings.repo) {
         setCycleStatus("reading");
         const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
@@ -907,7 +1166,14 @@ ${PROJECT_STRUCTURE}`;
           currentHtml = fetched.html;
           setCurrentFileSha(fetched.sha);
           setCurrentFilePath(fetched.filePath);
-          systemPrompt = EDIT_SYSTEM_PROMPT_FULL(currentHtml);
+          systemPrompt = EDIT_SYSTEM_PROMPT_FULL(currentHtml) + customAddition;
+        } else if (!fetched.ok) {
+          const is404 = fetched.message?.includes("404");
+          if (!is404) {
+            // Реальная ошибка (токен, сеть) — прерываем и сообщаем
+            throw new Error(`Не удалось прочитать файл из GitHub: ${fetched.message}`);
+          }
+          // 404 = файла ещё нет, создаём с нуля (нормально для первого раза)
         }
       }
 
@@ -1033,7 +1299,7 @@ ${urlList}
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
       }
     }
-  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest]);
+  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, authed, spendRequest]);
 
   const handleApply = useCallback(async (msgId: number, html: string) => {
     if (!ghSettings.token) { setSettingsOpen(true); return; }
@@ -1167,9 +1433,36 @@ ${urlList}
 
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";
 
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminError, setAdminError] = useState(false);
+
+  const handleAdminLogin = () => {
+    const ok = adminLogin(adminPassword);
+    if (ok) {
+      setAdminModalOpen(false);
+      setAdminPassword("");
+      setAdminError(false);
+      setSettingsOpen(true);
+    } else {
+      setAdminError(true);
+      setAdminPassword("");
+    }
+  };
+
+  const handleSettingsClick = () => {
+    if (authed) {
+      setSettingsOpen(true);
+    } else {
+      setAdminModalOpen(true);
+      setAdminError(false);
+      setAdminPassword("");
+    }
+  };
+
   return (
     <AnimatePresence mode="wait">
-      {!authed ? (
+      {!loggedIn ? (
         <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
           <LumenLoginPage onLogin={login} />
         </motion.div>
@@ -1183,14 +1476,72 @@ ${urlList}
           className="h-dvh flex flex-col bg-[#07070c] overflow-hidden"
           style={{ maxWidth: "100vw" }}
         >
+          {/* Admin password modal */}
+          <AnimatePresence>
+            {adminModalOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+                onClick={(e) => { if (e.target === e.currentTarget) { setAdminModalOpen(false); setAdminPassword(""); setAdminError(false); } }}
+              >
+                <motion.div
+                  initial={{ scale: 0.92, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.92, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="w-full max-w-sm bg-[#111118] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#9333ea]/10 border border-[#9333ea]/20 flex items-center justify-center">
+                      <Icon name="Lock" size={16} className="text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold text-sm">Доступ к настройкам</h3>
+                      <p className="text-white/30 text-xs">Введите пароль администратора</p>
+                    </div>
+                  </div>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => { setAdminPassword(e.target.value); setAdminError(false); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); if (e.key === "Escape") { setAdminModalOpen(false); setAdminPassword(""); setAdminError(false); } }}
+                    placeholder="Пароль"
+                    autoFocus
+                    className={`w-full h-10 bg-white/[0.04] border rounded-xl px-3 text-white/80 text-sm placeholder:text-white/20 outline-none transition-colors ${adminError ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.08] focus:border-[#9333ea]/40"}`}
+                  />
+                  {adminError && (
+                    <p className="text-red-400 text-xs -mt-2">Неверный пароль</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setAdminModalOpen(false); setAdminPassword(""); setAdminError(false); }}
+                      className="flex-1 h-9 rounded-xl border border-white/[0.08] text-white/40 text-sm hover:bg-white/[0.04] transition-colors"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      onClick={handleAdminLogin}
+                      className="flex-1 h-9 rounded-xl bg-[#9333ea] hover:bg-[#7e22ce] text-white text-sm font-semibold transition-colors"
+                    >
+                      Войти
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Show TopBar only on chat/preview tabs (desktop-like) */}
           {(activeTab === "chat" || activeTab === "projects") && (
             <LumenTopBar
               status={topStatus}
               cycleLabel={cycleLabel}
               selfEditActive={selfEditMode}
-              onSettings={() => setSettingsOpen(true)}
-              onLogout={logout}
+              isAdmin={authed}
+              onSettings={handleSettingsClick}
+              onLogout={authed ? logout : undefined}
             />
           )}
 
@@ -1286,25 +1637,39 @@ ${urlList}
 
                   <div className="flex-1 min-h-0 overflow-hidden relative md:flex md:gap-2 md:p-2">
                     <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>
-                      <ChatPanel
-                        status={cycleStatus}
-                        cycleLabel={cycleLabel}
-                        messages={messages}
-                        onSend={handleSend}
-                        onStop={handleStop}
-                        onApply={handleApply}
-                        deployingId={deployingId}
-                        deployResult={deployResult}
-                        liveUrl={liveUrl}
-                        onOpenPreview={() => setMobileTab("preview")}
-                        onLoadFromGitHub={handleLoadFromGitHub}
-                        loadingFromGitHub={loadingFromGitHub}
-                        currentFilePath={ghSettings.filePath || "index.html"}
-                        onLoadLocalFile={() => fileInputRef.current?.click()}
-                        hasLocalFile={!!fullCodeContext}
-                        localFileName={fullCodeContext?.fileName}
-                        pendingSql={pendingSql}
-                      />
+                      {!authed && !publicAiEnabled ? (
+                        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+                          <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
+                            🐜
+                          </div>
+                          <div>
+                            <h3 className="text-white/70 font-semibold text-base mb-1">Муравей временно спит</h3>
+                            <p className="text-white/30 text-sm leading-relaxed">ИИ-режим ещё не включён. Обратитесь к администратору.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <ChatPanel
+                          status={cycleStatus}
+                          cycleLabel={cycleLabel}
+                          messages={messages}
+                          onSend={handleSend}
+                          onStop={handleStop}
+                          onApply={handleApply}
+                          deployingId={deployingId}
+                          deployResult={deployResult}
+                          liveUrl={liveUrl}
+                          onOpenPreview={() => setMobileTab("preview")}
+                          onLoadFromGitHub={handleLoadFromGitHub}
+                          loadingFromGitHub={loadingFromGitHub}
+                          currentFilePath={ghSettings.filePath || "index.html"}
+                          onLoadLocalFile={() => fileInputRef.current?.click()}
+                          hasLocalFile={!!fullCodeContext}
+                          localFileName={fullCodeContext?.fileName}
+                          pendingSql={pendingSql}
+                          hasGitHub={!!(ghSettings.token && ghSettings.repo)}
+                          onOpenSettings={() => setSettingsOpen(true)}
+                        />
+                      )}
                     </div>
                     <div className={`flex flex-col h-full flex-1 min-w-0 ${mobileTab === "preview" ? "flex" : "hidden md:flex"}`}>
                       <LivePreview
@@ -1365,21 +1730,45 @@ ${urlList}
                     </div>
                   </div>
                   <div className="px-4 py-4 flex flex-col gap-2">
-                    <button onClick={() => setSettingsOpen(true)} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
+                    {/* Баланс запросов для обычных пользователей */}
+                    {!authed && muraveyBalance && (
+                      <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border ${muraveyBalance.total_requests_left === 0 ? "bg-red-500/[0.05] border-red-500/20" : "bg-[#f59e0b]/[0.05] border-[#f59e0b]/20"}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">🐜</span>
+                          <div>
+                            <div className="text-white/80 text-sm font-medium">Запросы к Муравью</div>
+                            <div className={`text-xs ${muraveyBalance.total_requests_left === 0 ? "text-red-400" : "text-[#f59e0b]/70"}`}>
+                              {muraveyBalance.total_requests_left === 0
+                                ? "Запросы закончились"
+                                : `Осталось ${muraveyBalance.total_requests_left} запросов`}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setPaywallOpen(true)}
+                          className="text-xs font-semibold text-[#f59e0b] hover:text-[#f59e0b]/80 transition-colors shrink-0"
+                        >
+                          Пополнить →
+                        </button>
+                      </div>
+                    )}
+                    <button onClick={handleSettingsClick} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
                       <span className="text-xl">⚙️</span>
                       <div>
                         <div className="text-white/80 text-sm font-medium">Настройки</div>
-                        <div className="text-white/30 text-xs">API ключи, GitHub, модель</div>
+                        <div className="text-white/30 text-xs">{authed ? "API ключи, GitHub, модель" : "Только для администратора"}</div>
                       </div>
                       <span className="text-white/20 ml-auto">→</span>
                     </button>
-                    <button onClick={logout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
-                      <span className="text-xl">🚪</span>
-                      <div>
-                        <div className="text-red-400 text-sm font-medium">Выйти</div>
-                        <div className="text-white/30 text-xs">Завершить сессию</div>
-                      </div>
-                    </button>
+                    {authed && (
+                      <button onClick={logout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
+                        <span className="text-xl">🚪</span>
+                        <div>
+                          <div className="text-red-400 text-sm font-medium">Выйти из режима администратора</div>
+                          <div className="text-white/30 text-xs">Завершить сессию</div>
+                        </div>
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -1399,10 +1788,23 @@ ${urlList}
             onSaveGh={saveGhSettings}
             selfEditMode={selfEditMode}
             onSelfEditToggle={handleSelfEditToggle}
+            publicAiEnabled={publicAiEnabled}
+            onPublicAiToggle={handlePublicAiToggle}
             onSyncEngine={handleSyncEngine}
             syncingEngine={syncingEngine}
             onLoadZip={() => zipInputRef.current?.click()}
             convertingZip={convertingZip}
+          />
+
+          <PaywallModal
+            open={paywallOpen}
+            onClose={() => setPaywallOpen(false)}
+            freeRequestsLeft={muraveyBalance?.free_requests_left ?? 0}
+            onCreatePayment={createPayment}
+            onCheckPayment={checkPayment}
+            onConfirmTest={confirmTestPayment}
+            onRestoreByEmail={restoreByEmail}
+            onPaid={() => { fetchBalance(); setPaywallOpen(false); }}
           />
         </motion.div>
       )}

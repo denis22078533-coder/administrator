@@ -14,6 +14,24 @@
       "expectedStatus": 400,
       "expectedBody": {"error": "token and repo required"},
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Push without files array",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "push", "token": "test", "repo": "test/repo"},
+      "expectedStatus": 400,
+      "expectedBody": {"error": "files array required. Send files from frontend as base64."},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Push_file without path",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "push_file", "token": "test", "repo": "test/repo"},
+      "expectedStatus": 400,
+      "expectedBody": {"error": "path and content_b64 required"},
+      "bodyMatcher": "partial"
     }
   ]
 }
