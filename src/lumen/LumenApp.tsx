@@ -70,7 +70,7 @@ Core stack: HTML/CSS/JS, React, TypeScript, Python 3.11, PostgreSQL/MySQL, REST 
 - Before writing code for complex systems — output a brief architecture plan (DB schema + frontend structure)
 - Optimize performance: minimal DOM, efficient CSS, no layout thrashing
 - When editing — preserve existing architecture, change ONLY what was asked
-- Output ONLY the requested artifact — no explanations, no markdown wrappers unless it IS markdown
+- Your response has two parts: 1. A brief summary of your work in Russian. 2. The full code artifact inside a <boltArtifact> block. Example: "Готово, я обновил заголовок.<boltArtifact><!DOCTYPE html>...</html></boltArtifact>". The code artifact must be complete and not contain any markdown fences like \`\`\`html.
 - Respond in the same language the user writes in (Russian if user writes in Russian)
 
 ## Built-in integrations knowledge:
@@ -83,18 +83,16 @@ Core stack: HTML/CSS/JS, React, TypeScript, Python 3.11, PostgreSQL/MySQL, REST 
 
 ## Architecture thinking:
 When user asks for a complex feature — FIRST output a short plan:
-\`\`\`
+\\`\\`\\`
 [Архитектура]
 БД: таблицы + ключевые поля
 Фронт: компоненты + flow
 API: эндпоинты
-\`\`\`
+\\`\\`\\`
 Then implement.
 ${PROJECT_STRUCTURE}`;
 
-const CREATE_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}
-## Task: Create a STUNNING, professional-grade website
-Output ONLY a full standalone HTML document (<!DOCTYPE html>...</html>). No explanations, no markdown fences.
+const CREATE_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}\n## Task: Create a STUNNING, professional-grade website
 
 ## DESIGN QUALITY — THIS IS YOUR TOP PRIORITY:
 - Create websites worthy of Awwwards, Dribbble, Behance — NEVER generic templates
@@ -128,41 +126,29 @@ Output ONLY a full standalone HTML document (<!DOCTYPE html>...</html>). No expl
 - Write REAL persuasive copy — not "Lorem ipsum" or generic placeholders. Make it specific and compelling.`;
 
 const EDIT_SYSTEM_PROMPT_FULL = (currentHtml: string) =>
-  `${SENIOR_DEV_ROLE}
-## Task: Edit existing website code
-Output ONLY the complete modified HTML document. No explanations, no markdown.
+  `${SENIOR_DEV_ROLE}\n## Task: Edit existing website code
 Rules:
 - Make EXACTLY the requested changes, nothing more
 - Preserve all existing styles, structure, content that was NOT mentioned
 - Keep the same framework/library versions already in the code
 
---- CURRENT SITE CODE ---
-${currentHtml}
---- END OF CODE ---`;
+--- CURRENT SITE CODE ---\n${currentHtml}\n--- END OF CODE ---`;
 
-const ZIP_CONVERT_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}
-## Task: Convert React/Vite project to single HTML file
-Your ONLY goal is to faithfully recreate the existing site as one self-contained HTML file.
+const ZIP_CONVERT_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}\n## Task: Convert React/Vite project to single HTML file
 Strict rules:
-1. Output ONLY the complete HTML document (<!DOCTYPE html>...) — no explanations, no markdown
-2. DO NOT invent new design or copy — reproduce EXACTLY what's in the source files
-3. Preserve all text, headings, color scheme, fonts, spacing from the original
-4. Load via CDN: Tailwind CSS, Lucide icons, Google Fonts (if used in source)
-5. All JS inline in <script> tags. Fully responsive.`;
+1. DO NOT invent new design or copy — reproduce EXACTLY what's in the source files
+2. Preserve all text, headings, color scheme, fonts, spacing from the original
+3. Load via CDN: Tailwind CSS, Lucide icons, Google Fonts (if used in source)
+4. All JS inline in <script> tags. Fully responsive.`;
 
 const LOCAL_FILE_EDIT_PROMPT = (currentHtml: string, fileName: string) =>
-  `${SENIOR_DEV_ROLE}
-## Task: Edit uploaded file «${fileName}»
-Output ONLY the complete modified HTML document. No explanations, no markdown.
+  `${SENIOR_DEV_ROLE}\n## Task: Edit uploaded file «${fileName}»
 Make EXACTLY the requested changes — preserve everything else as-is.
 
---- CURRENT FILE CODE ---
-${currentHtml}
---- END OF CODE ---`;
+--- CURRENT FILE CODE ---\n${currentHtml}\n--- END OF CODE ---`;
 
 // ── SQL migration prompt ────────────────────────────────────────────────────
-const SQL_MIGRATION_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}
-## Task: Generate SQL migration
+const SQL_MIGRATION_SYSTEM_PROMPT = `${SENIOR_DEV_ROLE}\n## Task: Generate SQL migration
 Output a JSON object with two fields:
 - "sql": complete SQL script (PostgreSQL + MySQL compatible where possible)
 - "explanation": brief description in Russian (1-3 sentences)
@@ -171,38 +157,31 @@ Output ONLY valid JSON, no markdown fences.`;
 
 // ── Self-Edit Mode промпт — ИИ редактирует платформу через GitHub ──────────
 const SELF_EDIT_SYSTEM_PROMPT = (repo: string, branch: string) =>
-  `${SENIOR_DEV_ROLE}
-## Self-Edit Mode — ACTIVE
+  `${SENIOR_DEV_ROLE}\n## Self-Edit Mode — ACTIVE
 You have READ and WRITE access to the Муравей (Ant) platform source code via GitHub API.
-Engine Repository: ${repo} (branch: ${branch})
-
+Engine Repository: ${repo} (branch: ${branch})\n
 To list files in a directory:
-\`\`\`action
+\\`\\`\\`action
 {"action":"list","path":"src/lumen"}
-\`\`\`
-
+\\`\\`\\`\n
 To read ONE file:
-\`\`\`action
+\\`\\`\\`action
 {"action":"read","path":"src/lumen/LumenApp.tsx"}
-\`\`\`
-
+\\`\\`\\`\n
 To read MULTIPLE files at once:
-\`\`\`action
+\\`\\`\\`action
 {"action":"read_multiple","paths":["src/lumen/LumenApp.tsx","src/lumen/ChatPanel.tsx"]}
-\`\`\`
-
+\\`\\`\\`\n
 To write/modify a file:
-\`\`\`action
+\\`\\`\\`action
 {"action":"write","path":"src/lumen/SomeFile.tsx","content":"...full file content..."}
-\`\`\`
-
+\\`\\`\\`\n
 Workflow:
 1. Use list to explore directories
 2. Use read_multiple to read several files at once (faster!)
 3. Plan minimal changes
 4. WRITE complete updated file content
-5. Confirm changes
-
+5. Confirm changes\n
 Rules:
 - Always read before writing
 - Prefer read_multiple over multiple single reads
@@ -412,7 +391,7 @@ export default function LumenApp() {
         // Приоритет: dist > build > корень > остальное
         const htmlFiles = allPaths.filter(p => p.endsWith("index.html"));
         console.log("[ZIP] Найдены index.html:", htmlFiles);
-        const pick = htmlFiles.find(p => p.includes("dist/")) 
+        const pick = htmlFiles.find(p => p.includes("dist/"))
           || htmlFiles.find(p => p.includes("build/"))
           || htmlFiles[0];
         if (pick) {
@@ -442,11 +421,11 @@ export default function LumenApp() {
         console.log("[ZIP] Assets найдено:", Object.keys(zipAssets));
 
         // Заменяем <link rel="stylesheet" href="..."> на инлайн <style>
-        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, (match, href) => {
+        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=["\']stylesheet["\'][^>]*href=["\']([^"\']+)["\'][^>]*\\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
-            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
+            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\\//, "")));
           if (key && zipAssets[key]) {
             console.log("[ZIP] Инлайн CSS:", key);
             return `<style>${zipAssets[key]}</style>`;
@@ -455,14 +434,14 @@ export default function LumenApp() {
         });
 
         // Заменяем <script src="..."> на инлайн <script>
-        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=["']([^"']+)["']([^>]*)><\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=["\']([^"\']+)["\']([^>]*)><\\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
-            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
+            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\\//, "")));
           if (key && zipAssets[key]) {
             console.log("[ZIP] Инлайн JS:", key);
-            const attrs = (pre + post).replace(/\s*src=["'][^"']*["']/gi, "").replace(/\s*type=["']module["']/gi, "");
+            const attrs = (pre + post).replace(/\\s*src=["\'][^"\']*["\']/gi, "").replace(/\\s*type=["\']module["\']/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
           return match;
@@ -487,13 +466,10 @@ export default function LumenApp() {
 
         const filesContext = Object.entries(files)
           .sort(([a], [b]) => a.localeCompare(b))
-          .map(([path, content]) => `\n\n### Файл: ${path}\n\`\`\`\n${content.slice(0, 6000)}\n\`\`\``)
+          .map(([path, content]) => `\\n\\n### Файл: ${path}\\n\\`\\`\\`\\n${content.slice(0, 6000)}\\n\\`\\`\\``)
           .join("");
 
-        const zipPrompt = `Конвертируй этот React/Vite проект (${fileCount} файлов) в один HTML файл. Сохрани все тексты, цвета и структуру точно как в оригинале. Верни ТОЛЬКО HTML.
-
---- ФАЙЛЫ ПРОЕКТА ---${filesContext}
---- КОНЕЦ ФАЙЛОВ ---`;
+        const zipPrompt = `Конвертируй этот React/Vite проект (${fileCount} файлов) в один HTML файл. Сохрани все тексты, цвета и структуру точно как в оригинале. Верни ТОЛЬКО HTML.\n\n--- ФАЙЛЫ ПРОЕКТА ---${filesContext}\n--- КОНЕЦ ФАЙЛОВ ---`;
 
         setCycleLabel("Конвертирую...");
         setCycleStatus("generating");
@@ -501,9 +477,9 @@ export default function LumenApp() {
         const rawResponse = await callAI(ZIP_CONVERT_SYSTEM_PROMPT, zipPrompt, (chars) => {
           setCycleLabel(`Конвертирую... ${chars} симв.`);
         });
-        const cleanHtml = extractHtml(rawResponse);
+        const { text: chatText, artifact: cleanHtml } = extractArtifact(rawResponse);
 
-        if (!/<[a-z][\s\S]*>/i.test(cleanHtml)) {
+        if (!cleanHtml) {
           throw new Error("Не удалось конвертировать проект. Попробуйте ещё раз.");
         }
 
@@ -515,7 +491,8 @@ export default function LumenApp() {
         setMessages(prev => [...prev, {
           id: ++msgCounter,
           role: "assistant",
-          text: `Проект «${file.name}» конвертирован (${fileCount} файлов). Опишите что нужно изменить — отредактирую.`,
+          text: chatText || `Проект «${file.name}» конвертирован (${fileCount} файлов). Опишите что нужно изменить — отредактирую.`,
+          html: cleanHtml
         }]);
       }
 
@@ -529,20 +506,26 @@ export default function LumenApp() {
     }
   }, [settings, liveUrl]);
 
-  const extractHtml = (raw: string): string => {
-    const mdMatch = raw.match(/```html\s*\n([\s\S]*?)```/i) || raw.match(/```\s*\n([\s\S]*?)```/);
-    if (mdMatch) raw = mdMatch[1].trim();
-    const tagMatch = raw.match(/(<!DOCTYPE[\s\S]*)/i) || raw.match(/(<html[\s\S]*)/i);
-    return tagMatch ? tagMatch[1].trim() : raw.trim();
+  const extractArtifact = (raw: string): { text: string; artifact: string } => {
+    const artifactMatch = raw.match(/<boltArtifact>([\\s\\S]*?)<\\/boltArtifact>/i);
+    if (artifactMatch && artifactMatch[1]) {
+      const artifact = artifactMatch[1].trim();
+      const text = raw.substring(0, artifactMatch.index).trim() || "Готово! Внес изменения в код.";
+      return { text, artifact };
+    }
+    // Fallback if the AI forgets the tag
+    const mdMatch = raw.match(/```(?:html)?\\s*([\\s\\S]*?)```/i);
+    if (mdMatch && mdMatch[1]) {
+        return { text: "Готово, вот код:", artifact: mdMatch[1].trim() };
+    }
+    return { text: raw.trim(), artifact: "" };
   };
 
   // Инжектирует принудительный светлый фон если в HTML нет явного светлого background
   const injectLightTheme = (html: string): string => {
-    const forceCss = `<style data-lumen-fix>
-      html,body{background:#ffffff!important;color:#111111!important;}
-    </style>`;
-    if (/<\/head>/i.test(html)) {
-      return html.replace(/<\/head>/i, `${forceCss}</head>`);
+    const forceCss = `<style data-lumen-fix>\n      html,body{background:#ffffff!important;color:#111111!important;}\n    </style>`;
+    if (/<\\/head>/i.test(html)) {
+      return html.replace(/<\\/head>/i, `${forceCss}</head>`);
     }
     if (/<body/i.test(html)) {
       return html.replace(/<body([^>]*)>/i, `<head>${forceCss}</head><body$1>`);
@@ -555,16 +538,16 @@ export default function LumenApp() {
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     // Если уже есть <base> тег — заменяем его
-    if (/<base\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\s[^>]*href=["'][^"']*["'][^>]*>/i, `<base href="${base}">`);
+    if (/<base\\s[^>]*href/i.test(html)) {
+      return html.replace(/<base\\s[^>]*href=["\'][^"\']*["\'][^>]*>/i, `<base href="${base}">`);
     }
     // Иначе вставляем сразу после <head>
     if (/<head>/i.test(html)) {
-      return html.replace(/<head>/i, `<head>\n  <base href="${base}">`);
+      return html.replace(/<head>/i, `<head>\\n  <base href="${base}">`);
     }
     // Fallback — вставляем после <html>
     if (/<html[^>]*>/i.test(html)) {
-      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href="${base}"></head>`);
+      return html.replace(/(<html[^>]*>)/i, `$1\\n<head><base href="${base}"></head>`);
     }
     return html;
   };
@@ -576,7 +559,7 @@ export default function LumenApp() {
     for (const msg of recent) {
       if (msg.html?.startsWith("__IMAGE__:")) continue; // пропускаем картинки
       const content = msg.html
-        ? msg.html.length > 8000 ? msg.text + "\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : msg.html
+        ? msg.html.length > 8000 ? msg.text + "\\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
         : msg.text;
       history.push({ role: msg.role === "user" ? "user" : "assistant", content });
     }
@@ -585,21 +568,14 @@ export default function LumenApp() {
   };
 
   const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 120_000): Promise<string> => {
-    const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
+    const rawBase = (settings.baseUrl || "").trim().replace(/\\/+$/, "");
     const isOpenAI = settings.provider === "openai";
 
     const chatMessages = useHistory
       ? buildChatHistory(userText)
       : [{ role: "user", content: userText }];
 
-    const MODEL_MAX_TOKENS: Record<string, number> = {
-      "gpt-4o-mini": 16000,
-      "gpt-4o": 16000,
-      "gpt-4-turbo": 16000,
-      "o3-mini": 16000,
-      "o1-mini": 16000,
-    };
-    const maxTokens = MODEL_MAX_TOKENS[settings.model] ?? 32000;
+    const maxTokens = 32000;
 
     // Определяем endpoint и заголовки для прямого вызова API
     const PROXYAPI_HOSTS = new Set(["proxyapi.ru", "www.proxyapi.ru", "api.proxyapi.ru"]);
@@ -610,7 +586,7 @@ export default function LumenApp() {
 
     if (isOpenAI) {
       const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
-      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+      const parsedHost = base.replace(/^https?:\\/\\//, "").split("/")[0].toLowerCase();
       if (PROXYAPI_HOSTS.has(parsedHost)) {
         endpoint = "https://api.proxyapi.ru/openai/v1/chat/completions";
       } else if (base.endsWith("/chat/completions")) {
@@ -631,7 +607,7 @@ export default function LumenApp() {
       };
     } else {
       const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
-      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+      const parsedHost = base.replace(/^https?:\\/\\//, "").split("/")[0].toLowerCase();
       if (PROXYAPI_HOSTS.has(parsedHost)) {
         endpoint = "https://api.proxyapi.ru/anthropic/v1/messages";
       } else if (base.endsWith("/messages")) {
@@ -767,23 +743,23 @@ export default function LumenApp() {
       return { error: `Сетевая ошибка при чтении ${path}: ${String(e)}` };
     }
     if (res.status === 401) return { error: `Ошибка авторизации (401). Проверьте токен GitHub в настройках Engine.` };
-    if (res.status === 403) return { error: `Нет доступа (403) к файлу \`${path}\`. Проверьте права токена.` };
-    if (res.status === 404) return { error: `Файл не найден (404): \`${path}\` в репозитории ${repo}` };
-    if (!res.ok) return { error: `GitHub API вернул HTTP ${res.status} для \`${path}\`` };
+    if (res.status === 403) return { error: `Нет доступа (403) к файлу \\`${path}\\`. Проверьте права токена.` };
+    if (res.status === 404) return { error: `Файл не найден (404): \\`${path}\\` в репозитории ${repo}` };
+    if (!res.ok) return { error: `GitHub API вернул HTTP ${res.status} для \\`${path}\\`` };
 
     let data: { content?: string; type?: string; message?: string };
-    try { data = await res.json(); } catch { return { error: `Не удалось разобрать ответ GitHub для \`${path}\`` }; }
+    try { data = await res.json(); } catch { return { error: `Не удалось разобрать ответ GitHub для \\`${path}\\`` }; }
 
     if (data.message) return { error: `GitHub: ${data.message}` };
-    if (!data.content) return { error: `Файл \`${path}\` пуст или является директорией` };
+    if (!data.content) return { error: `Файл \\`${path}\\` пуст или является директорией` };
 
     // Корректное декодирование base64 → UTF-8 (работает с кириллицей и любыми символами)
     try {
-      const b64 = data.content.replace(/\s/g, "");
+      const b64 = data.content.replace(/\\s/g, "");
       const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
       return { content: new TextDecoder("utf-8").decode(bytes) };
     } catch (e) {
-      return { error: `Ошибка декодирования файла \`${path}\`: ${String(e)}` };
+      return { error: `Ошибка декодирования файла \\`${path}\\`: ${String(e)}` };
     }
   };
 
@@ -796,16 +772,15 @@ export default function LumenApp() {
     const branch = ghSettings.branch || "main";
     try {
       const repoInfo = token && repo
-        ? `\n\nПодключён GitHub репозиторий: ${repo} (ветка: ${branch}).
+        ? `\\n\\nПодключён GitHub репозиторий: ${repo} (ветка: ${branch}).
 Доступны action-блоки для работы с файлами:
-- Список файлов в директории: \`{"action":"list","path":"src/lumen"}\`
-- Прочитать один файл: \`{"action":"read","path":"src/App.tsx"}\`
-- Прочитать несколько файлов сразу: \`{"action":"read_multiple","paths":["src/App.tsx","src/lumen/LumenApp.tsx"]}\`
+- Список файлов в директории: \\`{"action":"list","path":"src/lumen"}\\`
+- Прочитать один файл: \\`{"action":"read","path":"src/App.tsx"}\\`
+- Прочитать несколько файлов сразу: \\`{"action":"read_multiple","paths":["src/App.tsx","src/lumen/LumenApp.tsx"]}\\`
 
 Отвечай только один action-блок за раз. После получения файлов — сразу выполни задачу.`
         : "";
-      const chatSystemPrompt = `Ты дружелюбный AI-ассистент Муравей. Отвечай кратко и по делу на русском языке. Помогай с вопросами о сайтах, бизнесе, маркетинге и всём остальном.${repoInfo}
-${PROJECT_STRUCTURE}`;
+      const chatSystemPrompt = `Ты дружелюбный AI-ассистент Муравей. Отвечай кратко и по делу на русском языке. Помогай с вопросами о сайтах, бизнесе, маркетинге и всём остальном.${repoInfo}\n${PROJECT_STRUCTURE}`;
 
       // ── Шаг 1: первый вызов ИИ ────────────────────────────────────────────
       const response = await callAI(
@@ -816,25 +791,25 @@ ${PROJECT_STRUCTURE}`;
       );
 
       // ── Шаг 2: обрабатываем action-блоки ─────────────────────────────────
-      const actionMatch = response.match(/```action\s*([\s\S]*?)```/);
+      const actionMatch = response.match(/```action\\s*([\\s\\S]*?)```/);
       if (actionMatch && token && repo) {
         let actionData: { action: string; path?: string; paths?: string[] };
         try { actionData = JSON.parse(actionMatch[1].trim()); } catch { actionData = { action: "none" }; }
-        const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+        const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
 
         // action: list
         if (actionData.action === "list" && actionData.path) {
           setCycleLabel(`Читаю директорию ${actionData.path}...`);
           const listing = await listDirFromGitHub(actionData.path, token, repo, branch);
           if (listing) {
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nСодержимое \`${actionData.path}\`:\n\`\`\`\n${listing}\n\`\`\``.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nСодержимое \\`${actionData.path}\\`:\\n\\`\\`\\`\\n${listing}\\n\\`\\`\\``.trim() }]);
             setCycleLabel("Анализирую список...");
-            const response2 = await callAI(chatSystemPrompt, `Директория ${actionData.path}:\n${listing}\n\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
+            const response2 = await callAI(chatSystemPrompt, `Директория ${actionData.path}:\\n${listing}\\n\\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           } else {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nНе удалось прочитать директорию \`${actionData.path}\`.`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nНе удалось прочитать директорию \\`${actionData.path}\\`.`.trim() }]);
           }
           return;
         }
@@ -849,17 +824,17 @@ ${PROJECT_STRUCTURE}`;
             const result = await readFileFromGitHub(p, token, repo, branch);
             if (result.content !== undefined) {
               const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
-              filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
+              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
+              filesContent.push(`### ${p} (${sizeStr})\\n\\`\\`\\`\\n${body}\\n\\`\\`\\``);
             } else {
               errors.push(`⚠️ ${p}: ${result.error}`);
-              filesContent.push(`### ${p}\n[${result.error}]`);
+              filesContent.push(`### ${p}\\n[${result.error}]`);
             }
           }
-          const errNote = errors.length ? `\n\n${errors.join("\n")}` : "";
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал ${filesContent.length} файл(ов).${errNote}\nАнализирую...`.trim() }]);
+          const errNote = errors.length ? `\\n\\n${errors.join("\\n")}` : "";
+          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nПрочитал ${filesContent.length} файл(ов).${errNote}\\nАнализирую...`.trim() }]);
           setCycleLabel(`Анализирую ${filesContent.length} файлов...`);
-          const response2 = await callAI(chatSystemPrompt, `Файлы:\n\n${filesContent.join("\n\n")}\n\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
+          const response2 = await callAI(chatSystemPrompt, `Файлы:\\n\\n${filesContent.join("\\n\\n")}\\n\\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
           setCycleStatus("done"); setCycleLabel("");
           setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           return;
@@ -871,15 +846,15 @@ ${PROJECT_STRUCTURE}`;
           const result = await readFileFromGitHub(actionData.path, token, repo, branch);
           if (result.content !== undefined) {
             const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-            const truncated = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал \`${actionData.path}\` (${sizeStr}). Анализирую...`.trim() }]);
+            const truncated = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nПрочитал \\`${actionData.path}\\` (${sizeStr}). Анализирую...`.trim() }]);
             setCycleLabel("Анализирую...");
-            const response2 = await callAI(chatSystemPrompt, `Файл \`${actionData.path}\`:\n\`\`\`\n${truncated}\n\`\`\`\n\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
+            const response2 = await callAI(chatSystemPrompt, `Файл \\`${actionData.path}\\`:\\n\\`\\`\\`\\n${truncated}\\n\\`\\`\\`\\n\\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           } else {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ ${result.error}`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ ${result.error}`.trim() }]);
           }
           return;
         }
@@ -909,7 +884,7 @@ ${PROJECT_STRUCTURE}`;
       );
       let parsed: { sql: string; explanation: string };
       try {
-        const match = raw.match(/\{[\s\S]*\}/);
+        const match = raw.match(/\\{[\\s\\S]*\\}/);
         parsed = JSON.parse(match ? match[0] : raw);
       } catch {
         parsed = { sql: raw, explanation: "SQL-миграция сгенерирована." };
@@ -919,7 +894,7 @@ ${PROJECT_STRUCTURE}`;
       setCycleLabel("");
       setMessages(prev => [...prev, {
         id: ++msgCounter, role: "assistant",
-        text: `SQL-миграция готова\n\n${parsed.explanation}\n\n${parsed.sql}\n\nНажмите кнопку «Скопировать SQL» ниже.`,
+        text: `SQL-миграция готова\\n\\n${parsed.explanation}\\n\\n${parsed.sql}\\n\\nНажмите кнопку «Скопировать SQL» ниже.`,
       }]);
     } catch (err) {
       setCycleStatus("error");
@@ -936,7 +911,7 @@ ${PROJECT_STRUCTURE}`;
     const data = await res.json() as { name: string; type: string; size: number }[];
     if (!Array.isArray(data)) return null;
     const lines = data.map(f => `${f.type === "dir" ? "📁" : "📄"} ${dirPath}/${f.name}${f.type === "file" ? ` (${f.size} байт)` : ""}`);
-    return lines.join("\n");
+    return lines.join("\\n");
   };
 
   // ── Self-Edit Mode — ИИ читает/пишет файлы платформы через GitHub API ────────
@@ -950,7 +925,7 @@ ${PROJECT_STRUCTURE}`;
     if (!engineToken || !engineRepo) {
       setMessages(prev => [...prev, {
         id: ++msgCounter, role: "assistant",
-        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\n\nОткройте **Настройки → Self-Edit / Engine GitHub** и заполните:\n- Engine Token (GitHub Personal Access Token)\n- Engine Repository (например: `your-user/your-repo`)\n- Engine Branch (обычно `main`)",
+        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\\n\\nОткройте **Настройки → Self-Edit / Engine GitHub** и заполните:\\n- Engine Token (GitHub Personal Access Token)\\n- Engine Repository (например: `your-user/your-repo`)\\n- Engine Branch (обычно `main`)",
       }]);
       return;
     }
@@ -962,7 +937,7 @@ ${PROJECT_STRUCTURE}`;
       const response = await callAI(systemPrompt, text, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
 
       // Парсим action-блоки из ответа ИИ
-      const actionMatch = response.match(/```action\s*([\s\S]*?)```/);
+      const actionMatch = response.match(/```action\\s*([\\s\\S]*?)```/);
       if (actionMatch && engineToken) {
         let actionData: { action: string; path?: string; paths?: string[]; content?: string };
         try { actionData = JSON.parse(actionMatch[1].trim()); } catch { actionData = { action: "none" }; }
@@ -971,15 +946,15 @@ ${PROJECT_STRUCTURE}`;
         if (actionData.action === "list" && actionData.path) {
           setCycleLabel("Self-Edit: читаю директорию...");
           const listing = await listDirFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
-          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
           if (listing) {
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nСодержимое \`${actionData.path}\`:\n\`\`\`\n${listing}\n\`\`\``.trim() }]);
-            const response2 = await callAI(systemPrompt, `Содержимое директории ${actionData.path}:\n${listing}\n\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nСодержимое \\`${actionData.path}\\`:\\n\\`\\`\\`\\n${listing}\\n\\`\\`\\``.trim() }]);
+            const response2 = await callAI(systemPrompt, `Содержимое директории ${actionData.path}:\\n${listing}\\n\\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           } else {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nНе удалось прочитать директорию \`${actionData.path}\`.`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nНе удалось прочитать директорию \\`${actionData.path}\\`.`.trim() }]);
           }
           return;
         }
@@ -987,7 +962,7 @@ ${PROJECT_STRUCTURE}`;
         // action: read_multiple — читаем несколько файлов за раз
         if (actionData.action === "read_multiple" && actionData.paths && actionData.paths.length > 0) {
           setCycleLabel("Self-Edit: читаю файлы...");
-          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
           const filesContent: string[] = [];
           for (let i = 0; i < actionData.paths.length; i++) {
             const p = actionData.paths[i];
@@ -995,14 +970,14 @@ ${PROJECT_STRUCTURE}`;
             const result = await readFileFromGitHub(p, engineToken, engineRepo, engineBranch);
             if (result.content !== undefined) {
               const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
-              filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
+              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
+              filesContent.push(`### ${p} (${sizeStr})\\n\\`\\`\\`\\n${body}\\n\\`\\`\\``);
             } else {
-              filesContent.push(`### ${p}\n[${result.error}]`);
+              filesContent.push(`### ${p}\\n[${result.error}]`);
             }
           }
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\nПрочитал ${filesContent.length} файл(ов). Анализирую...`.trim() }]);
-          const response2 = await callAI(systemPrompt, `Содержимое файлов:\n\n${filesContent.join("\n\n")}\n\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
+          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nПрочитал ${filesContent.length} файл(ов). Анализирую...`.trim() }]);
+          const response2 = await callAI(systemPrompt, `Содержимое файлов:\\n\\n${filesContent.join("\\n\\n")}\\n\\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
           setCycleStatus("done"); setCycleLabel("");
           setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
           return;
@@ -1011,26 +986,26 @@ ${PROJECT_STRUCTURE}`;
         if (actionData.action === "read" && actionData.path) {
           setCycleLabel(`Self-Edit: читаю ${actionData.path}...`);
           const result = await readFileFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
-          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
           if (result.content !== undefined) {
             const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-            const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\n... [обрезан]" : result.content;
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n📄 \`${actionData.path}\` (${sizeStr}) — прочитан. Анализирую...`.trim() }]);
+            const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n📄 \\`${actionData.path}\\` (${sizeStr}) — прочитан. Анализирую...`.trim() }]);
             setCycleLabel("Self-Edit: анализирую...");
-            const response2 = await callAI(systemPrompt, `Файл ${actionData.path}:\n\`\`\`\n${body}\n\`\`\`\n\nТеперь выполни оригинальный запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
+            const response2 = await callAI(systemPrompt, `Файл ${actionData.path}:\\n\\`\\`\\`\\n${body}\\n\\`\\`\\`\\n\\nТеперь выполни оригинальный запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
             return;
           } else {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ ${result.error}`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ ${result.error}`.trim() }]);
             return;
           }
         }
 
         if (actionData.action === "write" && actionData.path && actionData.content) {
           setCycleLabel(`Self-Edit: сохраняю ${actionData.path}...`);
-          const cleanResponse = response.replace(/```action[\s\S]*?```/, "").trim();
+          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
           const apiUrl = `https://api.github.com/repos/${engineRepo}/contents/${encodeURIComponent(actionData.path).replace(/%2F/g, "/")}`;
 
           // Получаем текущий SHA (нужен для обновления существующего файла)
@@ -1045,12 +1020,12 @@ ${PROJECT_STRUCTURE}`;
             } else if (getRes.status !== 404) {
               const d = await getRes.json().catch(() => ({})) as { message?: string };
               setCycleStatus("error"); setCycleLabel("");
-              setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Ошибка получения SHA файла \`${actionData.path}\`: HTTP ${getRes.status} ${d.message || ""}`.trim() }]);
+              setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Ошибка получения SHA файла \\`${actionData.path}\\`: HTTP ${getRes.status} ${d.message || ""}`.trim() }]);
               return;
             }
           } catch (e) {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Сетевая ошибка при чтении SHA: ${String(e)}`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Сетевая ошибка при чтении SHA: ${String(e)}`.trim() }]);
             return;
           }
 
@@ -1083,17 +1058,17 @@ ${PROJECT_STRUCTURE}`;
             });
           } catch (e) {
             setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Сетевая ошибка при записи файла: ${String(e)}`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Сетевая ошибка при записи файла: ${String(e)}`.trim() }]);
             return;
           }
 
           const putData = await putRes.json().catch(() => ({})) as { message?: string; content?: { html_url?: string } };
           setCycleStatus(putRes.ok ? "done" : "error"); setCycleLabel("");
           if (putRes.ok) {
-            const fileUrl = putData.content?.html_url ? `\n🔗 ${putData.content.html_url}` : "";
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n✅ Файл \`${actionData.path}\` записан в \`${engineRepo}\` (ветка \`${engineBranch}\`).${fileUrl}`.trim() }]);
+            const fileUrl = putData.content?.html_url ? `\\n🔗 ${putData.content.html_url}` : "";
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n✅ Файл \\`${actionData.path}\\` записан в \\`${engineRepo}\\` (ветка \\`${engineBranch}\\`).${fileUrl}`.trim() }]);
           } else {
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\n\n❌ Ошибка записи \`${actionData.path}\`: HTTP ${putRes.status} — ${putData.message || "неизвестная ошибка"}`.trim() }]);
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Ошибка записи \\`${actionData.path}\\`: HTTP ${putRes.status} — ${putData.message || "неизвестная ошибка"}`.trim() }]);
           }
           return;
         }
@@ -1151,7 +1126,7 @@ ${PROJECT_STRUCTURE}`;
     try {
       // ── Шаг 1: читаем текущий код ─────────────────────────────────────────
       let currentHtml = "";
-      const customAddition = settings.customPrompt?.trim() ? `\n\n## Дополнительные инструкции от владельца:\n${settings.customPrompt.trim()}` : "";
+      const customAddition = settings.customPrompt?.trim() ? `\\n\\n## Дополнительные инструкции от владельца:\\n${settings.customPrompt.trim()}` : "";
       let systemPrompt = CREATE_SYSTEM_PROMPT + customAddition;
 
       if (fullCodeContext) {
@@ -1159,7 +1134,7 @@ ${PROJECT_STRUCTURE}`;
         systemPrompt = LOCAL_FILE_EDIT_PROMPT(currentHtml, fullCodeContext.fileName) + customAddition;
       } else if (ghSettings.token && ghSettings.repo) {
         setCycleStatus("reading");
-        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
+        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
         setCycleLabel(`Читаю ${filePath} из GitHub...`);
         const fetched = await fetchFromGitHub();
         if (fetched.ok && fetched.html) {
@@ -1194,7 +1169,7 @@ ${PROJECT_STRUCTURE}`;
         );
         let imgPrompts: string[] = [];
         try {
-          const match = imgPromptsRaw.match(/\[[\s\S]*?\]/);
+          const match = imgPromptsRaw.match(/\\[[\\s\\S]*?\\]/);
           if (match) imgPrompts = JSON.parse(match[0]);
         } catch { imgPrompts = []; }
 
@@ -1214,17 +1189,8 @@ ${PROJECT_STRUCTURE}`;
             } catch { /* продолжаем без этой картинки */ }
           }
           if (generatedUrls.length > 0) {
-            const urlList = generatedUrls.map((u, i) => `URL картинки ${i + 1}: ${u}`).join("\n");
-            enrichedText = `${text}
-
-ВАЖНО: Я уже сгенерировал специальные картинки для этого сайта. ОБЯЗАТЕЛЬНО используй их в дизайне:
-${urlList}
-
-Требования к использованию картинок:
-- Первая картинка — главный баннер/герой секция на всю ширину (object-fit: cover, height: 400-500px)
-- Остальные картинки — в галерее, карточках или секциях сайта
-- Все <img> должны иметь style="object-fit: cover" и заданные размеры
-- НЕ используй placeholder-картинки — только переданные URL`;
+            const urlList = generatedUrls.map((u, i) => `URL картинки ${i + 1}: ${u}`).join("\\n");
+            enrichedText = `${text}\\n\\nВАЖНО: Я уже сгенерировал специальные картинки для этого сайта. ОБЯЗАТЕЛЬНО используй их в дизайне:\\n${urlList}\\n\\nТребования к использованию картинок:\\n- Первая картинка — главный баннер/герой секция на всю ширину (object-fit: cover, height: 400-500px)\\n- Остальные картинки — в галерее, карточках или секциях сайта\\n- Все <img> должны иметь style="object-fit: cover" и заданные размеры\\n- НЕ используй placeholder-картинки — только переданные URL`;
           }
         }
       }
@@ -1240,10 +1206,18 @@ ${urlList}
       const rawResponse = await callAI(systemPrompt, enrichedText, (chars) => {
         setCycleLabel(`Создаю сайт... ${chars} симв.`);
       }, passHistory);
-      const cleanHtml = extractHtml(rawResponse);
+      
+      const { text: chatText, artifact: cleanHtml } = extractArtifact(rawResponse);
 
-      if (!/<[a-z][\s\S]*>/i.test(cleanHtml)) {
-        throw new Error(`Модель вернула не HTML: "${cleanHtml.slice(0, 200)}". Попробуйте ещё раз.`);
+      if (!cleanHtml) {
+        setCycleStatus("done");
+        setCycleLabel("");
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: chatText }]);
+        return;
+      }
+      
+      if (!/<[a-z][\\s\\S]*>/i.test(cleanHtml)) {
+        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: \"${cleanHtml.slice(0, 200)}\". Попробуйте ещё раз.`);
       }
 
       if (abortRef.current) return;
@@ -1253,13 +1227,10 @@ ${urlList}
       setMobileTab("preview");
 
       const assistantId = ++msgCounter;
-      const hasGitHub = !!(ghSettings.token && ghSettings.repo);
       setMessages(prev => [...prev, {
         id: assistantId,
         role: "assistant",
-        text: currentHtml
-          ? hasGitHub ? "Готово! Правки внесены. Загружаю в GitHub..." : "Готово! Правки внесены. Настройте GitHub чтобы сохранить."
-          : hasGitHub ? "Готово! Сайт создан. Загружаю в GitHub..." : "Готово! Сайт создан. Настройте GitHub для сохранения.",
+        text: chatText,
         html: cleanHtml,
       }]);
 
@@ -1269,7 +1240,7 @@ ${urlList}
       // ── Шаг 3: автодеплой в GitHub ───────────────────────────────────────
       if (ghSettings.token && ghSettings.repo) {
         setCycleLabel("Загружаю в GitHub...");
-        const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
+        const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
         const pushResult = await pushToGitHub(cleanHtml, "", filePath);
 
         if (pushResult.ok) {
@@ -1306,7 +1277,7 @@ ${urlList}
     setDeployingId(msgId);
     setDeployResult(null);
 
-    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
+    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
     setCycleStatus("generating");
     setCycleLabel(`Сохраняю ${filePath} в GitHub...`);
 
@@ -1414,7 +1385,7 @@ ${urlList}
       throw new Error("GitHub не настроен. Откройте настройки.");
     }
     if (!previewHtml) throw new Error("Нет кода для сохранения.");
-    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
+    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
     const result = await pushToGitHub(previewHtml, currentFileSha, filePath);
     if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
     try {
@@ -1622,7 +1593,7 @@ ${urlList}
 
                   {/* Mobile tab switcher chat/preview */}
                   <div className="md:hidden flex shrink-0 border-b border-white/[0.06] bg-[#0a0a0f]">
-                    {(["chat", "preview"] as const).map((tab) => (
+                    {([\"chat\", \"preview\"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setMobileTab(tab)}
