@@ -4,17 +4,18 @@ import Icon from '@/components/ui/icon';
 
 interface CoreDashboardProps {
   onOpenSettings: () => void;
+  onPublish: () => void;
 }
 
 const cardStyle = "flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/[0.03] border border-white/[0.06] p-6 text-center text-white/80 hover:bg-white/[0.05] hover:border-white/10 transition-all cursor-pointer";
 const cardIcon = "w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-amber-400";
 
-const CoreDashboard = ({ onOpenSettings }: CoreDashboardProps) => {
+const CoreDashboard = ({ onOpenSettings, onPublish }: CoreDashboardProps) => {
   const coreFeatures = [
     { name: 'База данных', icon: 'Database', action: () => alert('Управление базой данных (в разработке)') },
     { name: 'Функции', icon: 'Zap', action: () => alert('Управление серверными функциями (в разработке)') },
     { name: 'Секреты', icon: 'Key', action: onOpenSettings },
-    { name: 'Хранилище', icon: 'Folder', action: () => alert('Управление файлами (в разработке)') },
+    { name: 'Опубликовать', icon: 'Github', action: onPublish },
   ];
 
   return (
