@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 
-const API_URL = "http://localhost:5001/api"; // Адрес нашего бэкенда
+const API_URL = "https://югазин.рф/api"; // Адрес нашего бэкенда
 const TOKEN_KEY = "muravey_auth_token";
 const TESTER_MODE_KEY = "muravey_tester_mode";
 
