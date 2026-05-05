@@ -11,7 +11,7 @@ import ProjectsPage from "./ProjectsPage";
 import BottomNav, { Tab } from "./BottomNav";
 import AntWorker from "./AntWorker";
 import CoreDashboard from "./CoreDashboard";
-import { useApiAuth } from "./useApiAuth"; // <<< ИЗМЕНЕНИЕ
+import { useApiAuth } from "./useApiAuth"; 
 import { useGitHub } from "./useGitHub";
 import PaywallModal from "./PaywallModal";
 import {
@@ -23,8 +23,6 @@ import {
   SQL_MIGRATION_SYSTEM_PROMPT,
   ZIP_CONVERT_SYSTEM_PROMPT
 } from "./prompts";
-
-// ... (остальные импорты без изменений) ...
 
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
 type MobileTab = "chat" | "preview";
@@ -57,14 +55,12 @@ const DEFAULT_SETTINGS: Settings = {
 let msgCounter = 0;
 
 export default function LumenApp() {
-  // <<< ИЗМЕНЕНИЕ: Используем новый хук
   const { user, token, logout, isTester, toggleTesterMode, resetBalance, displayBalance } = useApiAuth();
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
 
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // ... (весь остальной state без изменений) ...
   const liveUrl = (() => {
     if (ghSettings.siteUrl?.trim()) {
       const u = ghSettings.siteUrl.trim();
@@ -879,7 +875,6 @@ ${PROJECT_STRUCTURE}`;
   const handleSend = useCallback(async (text: string, mode: ChatMode = "site") => {
     abortRef.current = false;
 
-    // <<< ИЗМЕНЕНИЕ: Проверка баланса перед отправкой
     if (user && !user.is_admin && user.tokens_balance <= 0) {
         setPaywallOpen(true);
         return;
@@ -894,7 +889,6 @@ ${PROJECT_STRUCTURE}`;
     setDeployResult(null);
     setPendingSql(null);
 
-    // ... (остальная логика handleSend без изменений, кроме проксирования) ...
     if (mode === "chat") {
       if (selfEditMode && ghSettings.engineRepo) {
         await handleSelfEditChat(text);
@@ -1054,7 +1048,14 @@ ${PROJECT_STRUCTURE}`;
     }
   }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, user, isTester]);
 
-  // ... (остальные хендлеры без изменений) ...
+  // <<< ИЗМЕНЕНИЕ: Новый обработчик для выбора шаблона
+  const handleSelectTemplate = useCallback((prompt: string) => {
+    setActiveTab("chat"); // Переключаемся на чат
+    setMessages([]); // Очищаем историю
+    savePreviewHtml(null);
+    handleSend(prompt, "site"); // Отправляем промпт шаблона
+  }, [handleSend]);
+
   const handleApply = useCallback(async (msgId: number, html: string) => {
     if (!ghSettings.token) { setSettingsOpen(true); return; }
     setDeployingId(msgId);
@@ -1182,11 +1183,8 @@ ${PROJECT_STRUCTURE}`;
 
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";
 
-  // <<< ИЗМЕНЕНИЕ: Убираем старую логику админ-пароля
-
   return (
     <AnimatePresence mode="wait">
-      {/* <<< ИЗМЕНЕНИЕ: Проверяем наличие токена и пользователя */}
       {!token || !user ? (
         <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
           <LumenLoginPage onLoginSuccess={() => { /* re-renders automatically after auth */ }} />
@@ -1202,7 +1200,6 @@ ${PROJECT_STRUCTURE}`;
           style={{ maxWidth: "100vw" }}
         >
 
-          {/* <<< ИЗМЕНЕНИЕ: Передаем новые пропсы в TopBar */}
           {(activeTab === "chat" || activeTab === "projects" || activeTab === "core") && (
             <LumenTopBar
               status={topStatus}
@@ -1215,7 +1212,6 @@ ${PROJECT_STRUCTURE}`;
             />
           )}
 
-          {/* ... (остальной рендеринг без критических изменений) ... */}
           <input
             ref={fileInputRef}
             type="file"
@@ -1373,7 +1369,11 @@ ${PROJECT_STRUCTURE}`;
                   transition={{ duration: 0.25 }}
                   className="absolute inset-0"
                 >
-                  <ProjectsPage onGoToChat={() => setActiveTab("chat")} />
+                  {/* <<< ИЗМЕНЕНИЕ: Передаем новые обработчики */}
+                  <ProjectsPage 
+                    onGoToChat={() => setActiveTab("chat")} 
+                    onSelectTemplate={handleSelectTemplate}
+                  />
                 </motion.div>
               )}
 
@@ -1437,7 +1437,6 @@ ${PROJECT_STRUCTURE}`;
 
           <BottomNav active={activeTab} onChange={setActiveTab} />
           
-          {/* <<< ИЗМЕНЕНИЕ: Передаем новые пропсы в SettingsDrawer */}
           <SettingsDrawer
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
@@ -1453,24 +1452,19 @@ ${PROJECT_STRUCTURE}`;
             syncingEngine={syncingEngine}
             onLoadZip={() => zipInputRef.current?.click()}
             convertingZip={convertingZip}
-            // Новые пропсы для админ-панели
             isAdmin={user.is_admin}
             isTesterMode={isTester}
             onToggleTesterMode={toggleTesterMode}
             onResetBalance={resetBalance}
           />
 
-          {/* <<< ИЗМЕНЕНИЕ: Модальное окно оплаты */}
           <PaywallModal
             open={paywallOpen}
             onClose={() => setPaywallOpen(false)}
-            // TODO: Заменить на реальные функции работы с платежами
             onCreatePayment={async (amount) => { console.log("Creating payment:", amount); return "https://t.me/denishrush"; }}
             onCheckPayment={async (orderId) => { console.log("Checking payment:", orderId); return "succeeded"; }}
             onPaid={() => { 
                 console.log("Payment successful!");
-                // Тут нужно будет обновить баланс пользователя
-                // Например, вызвав validateTokenAndFetchUser(token) или специальную функцию
                 setPaywallOpen(false); 
             }}
           />
