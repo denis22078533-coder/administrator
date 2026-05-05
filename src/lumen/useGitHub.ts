@@ -69,6 +69,25 @@ export function useGitHub() {
     }
   }, [ghSettings]);
 
+  const deleteFromGitHub = useCallback(async (path: string, sha: string): Promise<{ ok: boolean; message: string }> => {
+    const { token, repo } = ghSettings;
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+    const res = await fetch(apiUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message: `Lumen: deleting ${path}`, sha, branch: 'main' }),
+    });
+    if (res.ok) {
+      return { ok: true, message: `File ${path} deleted` };
+    }
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, message: data.message || `Failed to delete ${path}` };
+  }, [ghSettings]);
+
   const pushToGitHub = useCallback(async (
     html: string,
     sha: string,
@@ -79,6 +98,25 @@ export function useGitHub() {
     if (!repo) return { ok: false, message: "Введите путь к репозиторию" };
 
     const path = (filePath || "index.html").trim().replace(/^\//, "");
+
+    // Clean slate logic
+    try {
+      const listRes = await fetch(`https://api.github.com/repos/${repo}/contents/`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+      });
+      if (listRes.ok) {
+        const files = await listRes.json() as { name: string; path: string; sha: string; type: string }[];
+        for (const file of files) {
+          if (file.name !== 'README.md' && file.path !== '.github' && file.name !== path) {
+            await deleteFromGitHub(file.path, file.sha);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to clean repository', e);
+      // Continue even if cleanup fails
+    }
+
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
 
     let actualSha = sha;
@@ -142,7 +180,7 @@ export function useGitHub() {
     } else {
       return { ok: false, message: result.data.message || `Ошибка GitHub: HTTP ${result.status}` };
     }
-  }, [ghSettings]);
+  }, [ghSettings, deleteFromGitHub]);
 
   const syncEngine = useCallback(async (
     onProgress?: (msg: string) => void

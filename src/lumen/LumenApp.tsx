@@ -576,7 +576,13 @@ export default function LumenApp() {
       ? buildChatHistory(userText)
       : [{ role: "user", content: userText }];
 
-    const maxTokens = 32000;
+    const modelName = settings.model.toLowerCase();
+    let maxTokens = 16000; // Безопасный лимит по умолчанию
+    if (modelName.includes('mini') || modelName.includes('haiku')) {
+      maxTokens = 16000;
+    } else {
+      maxTokens = 32000;
+    }
 
     // Определяем endpoint и заголовки для прямого вызова API
     const PROXYAPI_HOSTS = new Set(["proxyapi.ru", "www.proxyapi.ru", "api.proxyapi.ru"]);
