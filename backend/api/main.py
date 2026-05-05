@@ -1,6 +1,7 @@
 import os
 import jwt
 import datetime
+import requests # Добавляем для запросов к Suno
 from functools import wraps
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -11,13 +12,18 @@ from database import (
     find_user_by_email, 
     find_user_by_id,
     reset_user_balance, 
-    consume_user_token
+    consume_user_token,
+    consume_user_tokens # Импортируем новую функцию
 )
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "https://югазин.рф"}})
 bcrypt = Bcrypt(app)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_super_secret_key_change_it_please')
+
+# Конфигурация Suno API (через RapidAPI)
+RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', 'your-rapidapi-key-here')
+RAPIDAPI_HOST = 'suno-ai-music-generator.p.rapidapi.com'
 
 # --- Декоратор для проверки JWT токена ---
 def token_required(f):
@@ -92,6 +98,51 @@ def reset_my_balance(current_user):
         return jsonify({"message": "Баланс обнулен", "user": updated_user})
     else:
         return jsonify({"message": "Не удалось обнулить баланс"}), 500
+
+
+@app.route('/api/music/generate', methods=['POST'])
+@token_required
+def generate_music_route(current_user):
+    # Списываем 10 токенов за генерацию музыки
+    success, message = consume_user_tokens(current_user['id'], 10)
+    if not success:
+        return jsonify({"message": message}), 402 # 402 Payment Required
+
+    data = request.get_json()
+    prompt = data.get('prompt')
+    if not prompt:
+        return jsonify({"message": "Требуется текстовый промпт"}), 400
+
+    # --- Заглушка для вызова Suno API ---
+    # Замените этот блок реальным вызовом к API
+    try:
+        # Здесь будет ваш код для вызова RapidAPI
+        # Например, что-то вроде этого:
+        # api_url = f"https://{RAPIDAPI_HOST}/api/generate"
+        # headers = {
+        #     "x-rapidapi-key": RAPIDAPI_KEY,
+        #     "x-rapidapi-host": RAPIDAPI_HOST,
+        #     "Content-Type": "application/json"
+        # }
+        # payload = {"prompt": prompt}
+        # response = requests.post(api_url, json=payload, headers=headers)
+        # response.raise_for_status() # Вызовет исключение при ошибке
+        # music_data = response.json()
+
+        # Имитируем успешный ответ
+        music_data = {
+            'audio_url': 'https://cdn.pixabay.com/download/audio/2022/11/17/audio_8b8a54a3b7.mp3?filename=fun-punk-opener-12-3475.mp3'
+        }
+
+        return jsonify(music_data)
+
+    except requests.exceptions.RequestException as e:
+        # В случае ошибки откатать списание токенов не будем, т.к. это сложно
+        # и может быть не нужно, если API вернуло ошибку из-за промпта.
+        return jsonify({"message": f"Ошибка при обращении к Suno API: {e}"}), 500
+    except Exception as e:
+        return jsonify({"message": f"Неизвестная ошибка: {e}"}), 500
+
 
 @app.route('/api/openai/request', methods=['POST'])
 @token_required

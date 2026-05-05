@@ -901,6 +901,10 @@ ${PROJECT_STRUCTURE}`;
     }
   }, [settings, ghSettings, messages, selfEditMode]);
 
+  const handleNewMessage = (message: Message) => {
+    setMessages(prev => [...prev, message]);
+  };
+
   const handleSend = useCallback(async (text: string, mode: ChatMode = "site") => {
     abortRef.current = false;
 
@@ -918,8 +922,7 @@ ${PROJECT_STRUCTURE}`;
     setDeployResult(null);
     setPendingSql(null);
 
-    const isMusicRequest = /песн|трек|музык|композици/i.test(text);
-    if (isMusicRequest && mode === "chat") {
+    if (mode === "music") { 
       await handleSendMusic(text);
       return;
     }
@@ -1360,6 +1363,7 @@ ${PROJECT_STRUCTURE}`;
                           cycleLabel={cycleLabel}
                           messages={messages}
                           onSend={handleSend}
+                          onNewMessage={handleNewMessage}
                           onStop={handleStop}
                           onApply={handleApply}
                           deployingId={deployingId}

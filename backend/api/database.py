@@ -108,3 +108,36 @@ def consume_user_token(user_id):
     finally:
         cursor.close()
         conn.close()
+
+def consume_user_tokens(user_id, amount=10):
+    conn = get_db_connection()
+    if not conn:
+        return False, "Нет подключения к БД"
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        conn.start_transaction()
+        cursor.execute("SELECT tokens_balance, is_admin FROM users WHERE id = %s FOR UPDATE", (user_id,))
+        user = cursor.fetchone()
+
+        if user is None:
+            conn.rollback()
+            return False, "Пользователь не найден"
+
+        if user['is_admin']:
+            conn.commit()
+            return True, "Админский аккаунт"
+
+        if user['tokens_balance'] >= amount:
+            cursor.execute("UPDATE users SET tokens_balance = tokens_balance - %s WHERE id = %s", (amount, user_id))
+            conn.commit()
+            return True, "Токены списаны"
+        else:
+            conn.rollback()
+            return False, "Недостаточно токенов"
+    except mysql.connector.Error as err:
+        conn.rollback()
+        return False, str(err)
+    finally:
+        cursor.close()
+        conn.close()
