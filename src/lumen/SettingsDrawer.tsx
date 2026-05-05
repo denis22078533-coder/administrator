@@ -5,6 +5,7 @@ import { GitHubSettings } from "./useGitHub";
 import AITab from "./settings/AITab";
 import GitHubTab from "./settings/GitHubTab";
 import EngineTab from "./settings/EngineTab";
+import AdminTab from "./settings/AdminTab"; // <<< ИЗМЕНЕНИЕ
 
 interface AISettings {
   apiKey: string;
@@ -15,6 +16,7 @@ interface AISettings {
   customPrompt?: string;
 }
 
+// <<< ИЗМЕНЕНИЕ: Добавляем новые пропсы для админ-панели
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -30,20 +32,32 @@ interface Props {
   syncingEngine?: boolean;
   onLoadZip?: () => void;
   convertingZip?: boolean;
+  // Новые пропсы
+  isAdmin: boolean;
+  isTesterMode: boolean;
+  onToggleTesterMode: () => void;
+  onResetBalance: () => void;
 }
 
-type Tab = "ai" | "github" | "engine";
+// <<< ИЗМЕНЕНИЕ: Добавляем новую вкладку
+type Tab = "ai" | "github" | "engine" | "admin";
 
-const TABS: [Tab, string, string][] = [
+const ALL_TABS: [Tab, string, string][] = [
   ["ai", "ИИ", "Cpu"],
   ["github", "GitHub", "Globe"],
   ["engine", "Engine", "Terminal"],
+  ["admin", "Админ", "Shield"], // Новая вкладка
 ];
 
 export default function SettingsDrawer({
   open, onClose, settings, onSave, ghSettings, onSaveGh,
   selfEditMode, onSelfEditToggle, publicAiEnabled, onPublicAiToggle,
   onSyncEngine, syncingEngine, onLoadZip, convertingZip,
+  // Новые пропсы
+  isAdmin,
+  isTesterMode,
+  onToggleTesterMode,
+  onResetBalance,
 }: Props) {
   const [tab, setTab] = useState<Tab>("ai");
   const [form, setForm] = useState(settings);
@@ -59,6 +73,9 @@ export default function SettingsDrawer({
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
+
+  // <<< ИЗМЕНЕНИЕ: Фильтруем вкладки в зависимости от роли
+  const TABS = isAdmin ? ALL_TABS : ALL_TABS.filter(([key]) => key !== 'admin');
 
   return (
     <AnimatePresence>
@@ -80,15 +97,15 @@ export default function SettingsDrawer({
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#9333ea]/20 to-indigo-600/20 border border-[#9333ea]/20 flex items-center justify-center">
-                  <Icon name="SlidersHorizontal" size={14} className="text-[#9333ea]" />
+                <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#9333ea]/20 to-indigo-600/20 border border-[#9333ea]/20 flex items-center justify-center">
+                    <Icon name="SlidersHorizontal" size={14} className="text-[#9333ea]" />
+                    </div>
+                    <div>
+                    <span className="text-white font-semibold text-sm block leading-tight">{isAdmin ? "Админ-панель" : "Настройки"}</span>
+                    <span className="text-white/25 text-[10px]">Lumen Control Center</span>
+                    </div>
                 </div>
-                <div>
-                  <span className="text-white font-semibold text-sm block leading-tight">Админ-панель</span>
-                  <span className="text-white/25 text-[10px]">Lumen Control Center</span>
-                </div>
-              </div>
               <button
                 onClick={onClose}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
@@ -109,7 +126,7 @@ export default function SettingsDrawer({
                       : "border-transparent text-white/30 hover:text-white/60"
                   }`}
                 >
-                  <Icon name={ico} size={13} />
+                  <Icon name={ico as any} size={13} />
                   {lbl}
                 </button>
               ))}
@@ -150,6 +167,15 @@ export default function SettingsDrawer({
                   onLoadZip={onLoadZip}
                   convertingZip={convertingZip}
                   onSaveAndSync={handleSave}
+                />
+              )}
+              
+              {/* <<< ИЗМЕНЕНИЕ: Новая вкладка админа */}
+              {tab === "admin" && isAdmin && (
+                <AdminTab 
+                    isTesterMode={isTesterMode}
+                    onToggleTesterMode={onToggleTesterMode}
+                    onResetBalance={onResetBalance}
                 />
               )}
             </div>

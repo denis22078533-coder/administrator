@@ -11,9 +11,8 @@ import ProjectsPage from "./ProjectsPage";
 import BottomNav, { Tab } from "./BottomNav";
 import AntWorker from "./AntWorker";
 import CoreDashboard from "./CoreDashboard";
-import { useLumenAuth } from "./useLumenAuth";
+import { useApiAuth } from "./useApiAuth"; // <<< ИЗМЕНЕНИЕ
 import { useGitHub } from "./useGitHub";
-import { useMuraveyBalance } from "./useMuraveyBalance";
 import PaywallModal from "./PaywallModal";
 import {
   CREATE_SYSTEM_PROMPT,
@@ -24,6 +23,8 @@ import {
   SQL_MIGRATION_SYSTEM_PROMPT,
   ZIP_CONVERT_SYSTEM_PROMPT
 } from "./prompts";
+
+// ... (остальные импорты без изменений) ...
 
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
 type MobileTab = "chat" | "preview";
@@ -56,20 +57,14 @@ const DEFAULT_SETTINGS: Settings = {
 let msgCounter = 0;
 
 export default function LumenApp() {
-  const { loggedIn, authed, login, adminLogin, logout } = useLumenAuth();
+  // <<< ИЗМЕНЕНИЕ: Используем новый хук
+  const { user, token, logout, isTester, toggleTesterMode, resetBalance, displayBalance } = useApiAuth();
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
 
-  const {
-    balance: muraveyBalance,
-    spendRequest,
-    createPayment,
-    checkPayment,
-    confirmTestPayment,
-    restoreByEmail,
-    fetchBalance,
-  } = useMuraveyBalance(authed);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // ... (весь остальной state без изменений) ...
   const liveUrl = (() => {
     if (ghSettings.siteUrl?.trim()) {
       const u = ghSettings.siteUrl.trim();
@@ -84,7 +79,6 @@ export default function LumenApp() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [htmlHistory, setHtmlHistory] = useState<string[]>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const [deployingId, setDeployingId] = useState<number | null>(null);
   const [deployResult, setDeployResult] = useState<{ id: number; ok: boolean; message: string } | null>(null);
@@ -885,12 +879,14 @@ ${PROJECT_STRUCTURE}`;
   const handleSend = useCallback(async (text: string, mode: ChatMode = "site") => {
     abortRef.current = false;
 
-    if (!authed) {
-      const canSend = await spendRequest();
-      if (!canSend) {
+    // <<< ИЗМЕНЕНИЕ: Проверка баланса перед отправкой
+    if (user && !user.is_admin && user.tokens_balance <= 0) {
         setPaywallOpen(true);
         return;
-      }
+    }
+    if (user && user.is_admin && isTester && user.tokens_balance <= 0) {
+        setPaywallOpen(true);
+        return;
     }
 
     const userMsg: Message = { id: ++msgCounter, role: "user", text };
@@ -898,6 +894,7 @@ ${PROJECT_STRUCTURE}`;
     setDeployResult(null);
     setPendingSql(null);
 
+    // ... (остальная логика handleSend без изменений, кроме проксирования) ...
     if (mode === "chat") {
       if (selfEditMode && ghSettings.engineRepo) {
         await handleSelfEditChat(text);
@@ -1055,8 +1052,9 @@ ${PROJECT_STRUCTURE}`;
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
       }
     }
-  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, authed, spendRequest]);
+  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, user, isTester]);
 
+  // ... (остальные хендлеры без изменений) ...
   const handleApply = useCallback(async (msgId: number, html: string) => {
     if (!ghSettings.token) { setSettingsOpen(true); return; }
     setDeployingId(msgId);
@@ -1159,10 +1157,6 @@ ${PROJECT_STRUCTURE}`;
     URL.revokeObjectURL(url);
   };
 
-
-
-
-
   const handleApplyToGitHub = useCallback(async () => {
     if (!ghSettings.token || !ghSettings.repo) {
       setSettingsOpen(true);
@@ -1188,38 +1182,14 @@ ${PROJECT_STRUCTURE}`;
 
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";
 
-  const [adminModalOpen, setAdminModalOpen] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminError, setAdminError] = useState(false);
-
-  const handleAdminLogin = () => {
-    const ok = adminLogin(adminPassword);
-    if (ok) {
-      setAdminModalOpen(false);
-      setAdminPassword("");
-      setAdminError(false);
-      setSettingsOpen(true);
-    } else {
-      setAdminError(true);
-      setAdminPassword("");
-    }
-  };
-
-  const handleSettingsClick = () => {
-    if (authed) {
-      setSettingsOpen(true);
-    } else {
-      setAdminModalOpen(true);
-      setAdminError(false);
-      setAdminPassword("");
-    }
-  };
+  // <<< ИЗМЕНЕНИЕ: Убираем старую логику админ-пароля
 
   return (
     <AnimatePresence mode="wait">
-      {!loggedIn ? (
+      {/* <<< ИЗМЕНЕНИЕ: Проверяем наличие токена и пользователя */}
+      {!token || !user ? (
         <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-          <LumenLoginPage onLogin={login} />
+          <LumenLoginPage onLoginSuccess={() => { /* re-renders automatically after auth */ }} />
         </motion.div>
       ) : (
         <motion.div
@@ -1231,73 +1201,21 @@ ${PROJECT_STRUCTURE}`;
           className="h-dvh flex flex-col bg-[#07070c] overflow-hidden"
           style={{ maxWidth: "100vw" }}
         >
-          <AnimatePresence>
-            {adminModalOpen && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-                onClick={(e) => { if (e.target === e.currentTarget) { setAdminModalOpen(false); setAdminPassword(""); setAdminError(false); } } }
-              >
-                <motion.div
-                  initial={{ scale: 0.92, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.92, opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="w-full max-w-sm bg-[#111118] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#9333ea]/10 border border-[#9333ea]/20 flex items-center justify-center">
-                      <Icon name="Lock" size={16} className="text-purple-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-semibold text-sm">Доступ к настройкам</h3>
-                      <p className="text-white/30 text-xs">Введите пароль администратора</p>
-                    </div>
-                  </div>
-                  <input
-                    type="password"
-                    value={adminPassword}
-                    onChange={(e) => { setAdminPassword(e.target.value); setAdminError(false); } }
-                    onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); if (e.key === "Escape") { setAdminModalOpen(false); setAdminPassword(""); setAdminError(false); } } }
-                    placeholder="Пароль"
-                    autoFocus
-                    className={`w-full h-10 bg-white/[0.04] border rounded-xl px-3 text-white/80 text-sm placeholder:text-white/20 outline-none transition-colors ${adminError ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.08] focus:border-[#9333ea]/40"}`}
-                  />
-                  {adminError && (
-                    <p className="text-red-400 text-xs -mt-2">Неверный пароль</p>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setAdminModalOpen(false); setAdminPassword(""); setAdminError(false); } }
-                      className="flex-1 h-9 rounded-xl border border-white/[0.08] text-white/40 text-sm hover:bg-white/[0.04] transition-colors"
-                    >
-                      Отмена
-                    </button>
-                    <button
-                      onClick={handleAdminLogin}
-                      className="flex-1 h-9 rounded-xl bg-[#9333ea] hover:bg-[#7e22ce] text-white text-sm font-semibold transition-colors"
-                    >
-                      Войти
-                    </button>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
+          {/* <<< ИЗМЕНЕНИЕ: Передаем новые пропсы в TopBar */}
           {(activeTab === "chat" || activeTab === "projects" || activeTab === "core") && (
             <LumenTopBar
               status={topStatus}
               cycleLabel={cycleLabel}
               selfEditActive={selfEditMode}
-              isAdmin={authed}
-              onSettings={handleSettingsClick}
-              onLogout={authed ? logout : undefined}
+              isAdmin={user.is_admin}
+              onSettings={() => setSettingsOpen(true)}
+              onLogout={logout}
+              balance={displayBalance}
             />
           )}
 
+          {/* ... (остальной рендеринг без критических изменений) ... */}
           <input
             ref={fileInputRef}
             type="file"
@@ -1343,7 +1261,7 @@ ${PROJECT_STRUCTURE}`;
                   transition={{ duration: 0.25 }}
                   className="absolute inset-0"
                 >
-                  <CoreDashboard onOpenSettings={handleSettingsClick} />
+                  <CoreDashboard onOpenSettings={() => setSettingsOpen(true)} />
                 </motion.div>
               )}
 
@@ -1396,7 +1314,7 @@ ${PROJECT_STRUCTURE}`;
 
                   <div className="flex-1 min-h-0 overflow-hidden relative md:flex md:gap-2 md:p-2">
                     <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>
-                      {!authed && !publicAiEnabled ? (
+                      {!publicAiEnabled ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                           <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
                             🐜
@@ -1426,7 +1344,7 @@ ${PROJECT_STRUCTURE}`;
                           localFileName={fullCodeContext?.fileName}
                           pendingSql={pendingSql}
                           hasGitHub={!!(ghSettings.token && ghSettings.repo)}
-                          onOpenSettings={handleSettingsClick}
+                          onOpenSettings={() => setSettingsOpen(true)}
                         />
                       )}
                     </div>
@@ -1473,21 +1391,18 @@ ${PROJECT_STRUCTURE}`;
                       🐜
                     </div>
                     <div className="text-center">
-                      <h2 className="text-white font-bold text-lg">Профиль</h2>
-                      <p className="text-white/40 text-xs">Муравей AI-разработчик</p>
+                      <h2 className="text-white font-bold text-lg">{user.email}</h2>
+                      <p className="text-white/40 text-xs">{user.is_admin ? "Администратор" : "Пользователь"}</p>
                     </div>
                   </div>
                   <div className="px-4 py-4 flex flex-col gap-2">
-                    {!authed && muraveyBalance && (
-                      <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border ${muraveyBalance.total_requests_left === 0 ? "bg-red-500/[0.05] border-red-500/20" : "bg-[#f59e0b]/[0.05] border-[#f59e0b]/20"}`}>
+                      <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border ${displayBalance === 0 ? "bg-red-500/[0.05] border-red-500/20" : "bg-[#f59e0b]/[0.05] border-[#f59e0b]/20"}`}>
                         <div className="flex items-center gap-3">
                           <span className="text-xl">🐜</span>
                           <div>
                             <div className="text-white/80 text-sm font-medium">Запросы к Муравью</div>
-                            <div className={`text-xs ${muraveyBalance.total_requests_left === 0 ? "text-red-400" : "text-[#f59e0b]/70"}`}>
-                              {muraveyBalance.total_requests_left === 0
-                                ? "Запросы закончились"
-                                : `Осталось ${muraveyBalance.total_requests_left} запросов`}
+                            <div className={`text-xs ${displayBalance === 0 ? "text-red-400" : "text-[#f59e0b]/70"}`}>
+                              {displayBalance === "∞" ? "Безлимит для админа" : `Осталось ${displayBalance} запросов`}
                             </div>
                           </div>
                         </div>
@@ -1498,24 +1413,21 @@ ${PROJECT_STRUCTURE}`;
                           Пополнить →
                         </button>
                       </div>
-                    )}
-                    <button onClick={handleSettingsClick} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
+                    <button onClick={() => setSettingsOpen(true)} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
                       <span className="text-xl">⚙️</span>
                       <div>
                         <div className="text-white/80 text-sm font-medium">Настройки</div>
-                        <div className="text-white/30 text-xs">{authed ? "API ключи, GitHub, модель" : "Только для администратора"}</div>
+                        <div className="text-white/30 text-xs">API ключи, GitHub, модель</div>
                       </div>
                       <span className="text-white/20 ml-auto">→</span>
                     </button>
-                    {authed && (
-                      <button onClick={logout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
+                    <button onClick={logout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
                         <span className="text-xl">🚪</span>
                         <div>
-                          <div className="text-red-400 text-sm font-medium">Выйти из режима администратора</div>
+                          <div className="text-red-400 text-sm font-medium">Выйти</div>
                           <div className="text-white/30 text-xs">Завершить сессию</div>
                         </div>
-                      </button>
-                    )}
+                    </button>
                   </div>
                 </motion.div>
               )}
@@ -1524,7 +1436,8 @@ ${PROJECT_STRUCTURE}`;
           </div>
 
           <BottomNav active={activeTab} onChange={setActiveTab} />
-
+          
+          {/* <<< ИЗМЕНЕНИЕ: Передаем новые пропсы в SettingsDrawer */}
           <SettingsDrawer
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
@@ -1540,17 +1453,26 @@ ${PROJECT_STRUCTURE}`;
             syncingEngine={syncingEngine}
             onLoadZip={() => zipInputRef.current?.click()}
             convertingZip={convertingZip}
+            // Новые пропсы для админ-панели
+            isAdmin={user.is_admin}
+            isTesterMode={isTester}
+            onToggleTesterMode={toggleTesterMode}
+            onResetBalance={resetBalance}
           />
 
+          {/* <<< ИЗМЕНЕНИЕ: Модальное окно оплаты */}
           <PaywallModal
             open={paywallOpen}
             onClose={() => setPaywallOpen(false)}
-            freeRequestsLeft={muraveyBalance?.free_requests_left ?? 0}
-            onCreatePayment={createPayment}
-            onCheckPayment={checkPayment}
-            onConfirmTest={confirmTestPayment}
-            onRestoreByEmail={restoreByEmail}
-            onPaid={() => { fetchBalance(); setPaywallOpen(false); } }
+            // TODO: Заменить на реальные функции работы с платежами
+            onCreatePayment={async (amount) => { console.log("Creating payment:", amount); return "https://t.me/denishrush"; }}
+            onCheckPayment={async (orderId) => { console.log("Checking payment:", orderId); return "succeeded"; }}
+            onPaid={() => { 
+                console.log("Payment successful!");
+                // Тут нужно будет обновить баланс пользователя
+                // Например, вызвав validateTokenAndFetchUser(token) или специальную функцию
+                setPaywallOpen(false); 
+            }}
           />
         </motion.div>
       )}
