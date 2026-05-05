@@ -40,3 +40,4 @@ export default function MusicPlayer({ track }: Props) {
     </motion.div>
   );
 }
+
