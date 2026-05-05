@@ -23,5 +23,5 @@ jobs:
           # Сюда мы добавим JSON-ключ сервисного аккаунта
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}'
           channelId: live
-          # !!! ВАЖНО: Замените на ID вашего проекта в Firebase !!!
-          projectId: YOUR_FIREBASE_PROJECT_ID
+          # ID вашего проекта в Firebase
+          projectId: moi-umniy-lumin
