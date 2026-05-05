@@ -11,9 +11,11 @@ import ProjectsPage from "./ProjectsPage";
 import BottomNav, { Tab } from "./BottomNav";
 import AntWorker from "./AntWorker";
 import CoreDashboard from "./CoreDashboard";
-import { useApiAuth } from "./useApiAuth"; 
+import { useApiAuth } from "./useApiAuth";
 import { useGitHub } from "./useGitHub";
 import PaywallModal from "./PaywallModal";
+import { MusicService } from "../lib/MusicService";
+import MusicPlayer from "./MusicPlayer";
 import {
   CREATE_SYSTEM_PROMPT,
   EDIT_SYSTEM_PROMPT_FULL,
@@ -32,6 +34,7 @@ export interface Message {
   role: "user" | "assistant";
   text: string;
   html?: string;
+  track?: any;
 }
 
 interface Settings {
@@ -55,7 +58,7 @@ const DEFAULT_SETTINGS: Settings = {
 let msgCounter = 0;
 
 export default function LumenApp() {
-  const { user, token, logout, isTester, toggleTesterMode, resetBalance, displayBalance } = useApiAuth();
+  const { user, token, logout, isTester, toggleTesterMode, resetBalance, displayBalance, spendBalance } = useApiAuth();
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
 
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -389,6 +392,7 @@ ${content.slice(0, 6000)}
     const recent = messages.slice(-maxPairs * 2);
     for (const msg of recent) {
       if (msg.html?.startsWith("__IMAGE__:")) continue;
+      if (msg.track) continue;
       const content = msg.html
         ? msg.html.length > 64000 ? msg.text + "\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
         : msg.text;
@@ -557,6 +561,31 @@ ${content.slice(0, 6000)}
       setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
     }
   }, [IMAGE_GENERATE_URL]);
+
+  const handleSendMusic = useCallback(async (text: string) => {
+    setCycleStatus("generating");
+    setCycleLabel("Создаю песню...");
+    try {
+      await spendBalance(10);
+      const tracks = await MusicService.generate(text);
+      if (!tracks || tracks.length === 0) {
+        throw new Error("Не удалось создать песню. Попробуйте другой запрос.");
+      }
+      setCycleStatus("done");
+      setCycleLabel("");
+      setMessages(prev => [...prev, {
+        id: ++msgCounter,
+        role: "assistant",
+        text: `Композиция готова: **${tracks[0].title}**`,
+        track: tracks[0],
+      }]);
+    } catch (err) {
+      setCycleStatus("error");
+      setCycleLabel("");
+      const errText = err instanceof Error ? err.message : "Неизвестная ошибка";
+      setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
+    }
+  }, [spendBalance]);
 
   const readFileFromGitHub = async (path: string, token: string, repo: string, branch: string): Promise<{ content: string; error?: never } | { content?: never; error: string }> => {
     if (!repo || !token) return { error: "Не настроен Engine-репозиторий или токен. Откройте Настройки → Engine GitHub." };
@@ -889,6 +918,12 @@ ${PROJECT_STRUCTURE}`;
     setDeployResult(null);
     setPendingSql(null);
 
+    const isMusicRequest = /песн|трек|музык|композици/i.test(text);
+    if (isMusicRequest && mode === "chat") {
+      await handleSendMusic(text);
+      return;
+    }
+
     if (mode === "chat") {
       if (selfEditMode && ghSettings.engineRepo) {
         await handleSelfEditChat(text);
@@ -1046,14 +1081,13 @@ ${PROJECT_STRUCTURE}`;
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
       }
     }
-  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, user, isTester]);
+  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, user, isTester, handleSendMusic]);
 
-  // <<< ИЗМЕНЕНИЕ: Новый обработчик для выбора шаблона
   const handleSelectTemplate = useCallback((prompt: string) => {
-    setActiveTab("chat"); // Переключаемся на чат
-    setMessages([]); // Очищаем историю
+    setActiveTab("chat");
+    setMessages([]);
     savePreviewHtml(null);
-    handleSend(prompt, "site"); // Отправляем промпт шаблона
+    handleSend(prompt, "site");
   }, [handleSend]);
 
   const handleApply = useCallback(async (msgId: number, html: string) => {
@@ -1114,7 +1148,7 @@ ${PROJECT_STRUCTURE}`;
         text: `Не удалось загрузить файл: ${fetched.message || "неизвестная ошибка"}. Проверьте настройки GitHub.`,
       }]);
     }
-  }, [ghSettings, fetchFromGitHub]);
+  }, [ghSettings, fetchFromGitHub, liveUrl]);
 
   const handleLoadLocalFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1134,7 +1168,7 @@ ${PROJECT_STRUCTURE}`;
     };
     reader.readAsText(file, "utf-8");
     e.target.value = "";
-  }, []);
+  }, [liveUrl]);
 
   const handleNewProject = () => {
     setMessages([]);
@@ -1369,7 +1403,6 @@ ${PROJECT_STRUCTURE}`;
                   transition={{ duration: 0.25 }}
                   className="absolute inset-0"
                 >
-                  {/* <<< ИЗМЕНЕНИЕ: Передаем новые обработчики */}
                   <ProjectsPage 
                     onGoToChat={() => setActiveTab("chat")} 
                     onSelectTemplate={handleSelectTemplate}
