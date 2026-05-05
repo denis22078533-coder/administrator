@@ -1,13 +1,11 @@
-
 name: Deploy to FTP
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,6 +29,5 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        protocol: ftp
         server-dir: www/xn--80afnez1h.xn--p1ai/
         local-dir: ./dist/
