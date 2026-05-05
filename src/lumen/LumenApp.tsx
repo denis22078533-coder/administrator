@@ -5,7 +5,7 @@ import LumenTopBar from "./LumenTopBar";
 import LivePreview from "./LivePreview";
 import ChatPanel, { ChatMode } from "./ChatPanel";
 import SettingsDrawer from "./SettingsDrawer";
-import LumenLoginPage from "./LumenLoginPage";
+import LumenLoginPage from "./components/auth/LumenLoginPage";
 import HomePage from "./HomePage";
 import ProjectsPage from "./ProjectsPage";
 import BottomNav, { Tab } from "./BottomNav";
