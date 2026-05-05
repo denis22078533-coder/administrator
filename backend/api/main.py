@@ -1,7 +1,7 @@
 import os
 import jwt
 import datetime
-import requests # Добавляем для запросов к Suno
+import requests 
 from functools import wraps
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -13,7 +13,7 @@ from database import (
     find_user_by_id,
     reset_user_balance, 
     consume_user_token,
-    consume_user_tokens # Импортируем новую функцию
+    consume_user_tokens
 )
 
 app = Flask(__name__)
@@ -21,9 +21,18 @@ CORS(app, resources={r"/api/*": {"origins": "https://югазин.рф"}})
 bcrypt = Bcrypt(app)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_super_secret_key_change_it_please')
 
-# Конфигурация Suno API (через RapidAPI)
 RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', 'your-rapidapi-key-here')
 RAPIDAPI_HOST = 'suno-ai-music-generator.p.rapidapi.com'
+
+# --- Глобальные обработчики ошибок для JSON ответов ---
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({"message": "Ресурс не найден (404). Проверьте URL запроса."}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({"message": f"Внутренняя ошибка сервера (500): {error}"}), 500
+
 
 # --- Декоратор для проверки JWT токена ---
 def token_required(f):
@@ -41,7 +50,7 @@ def token_required(f):
             current_user = find_user_by_id(data['user_id'])
             if not current_user:
                  return jsonify({'message': 'Пользователь не найден'}), 404
-            del current_user['password_hash'] # Не передаем хэш пароля
+            del current_user['password_hash']
         except Exception as e:
             return jsonify({'message': 'Токен недействителен', 'error': str(e)}), 401
         
@@ -83,16 +92,13 @@ def login():
 @app.route('/api/me', methods=['GET'])
 @token_required
 def get_me(current_user):
-    # Возвращает информацию о текущем пользователе
     return jsonify({"user": current_user})
 
 @app.route('/api/balance/reset', methods=['POST'])
 @token_required
 def reset_my_balance(current_user):
-    # Обнуляет баланс текущего пользователя
     success = reset_user_balance(current_user['id'])
     if success:
-        # Возвращаем обновленные данные пользователя
         updated_user = find_user_by_id(current_user['id'])
         del updated_user['password_hash']
         return jsonify({"message": "Баланс обнулен", "user": updated_user})
@@ -103,42 +109,32 @@ def reset_my_balance(current_user):
 @app.route('/api/music/generate', methods=['POST'])
 @token_required
 def generate_music_route(current_user):
-    # Списываем 10 токенов за генерацию музыки
     success, message = consume_user_tokens(current_user['id'], 10)
     if not success:
-        return jsonify({"message": message}), 402 # 402 Payment Required
+        return jsonify({"message": message}), 402
 
     data = request.get_json()
     prompt = data.get('prompt')
     if not prompt:
         return jsonify({"message": "Требуется текстовый промпт"}), 400
 
-    # --- Заглушка для вызова Suno API ---
-    # Замените этот блок реальным вызовом к API
     try:
-        # Здесь будет ваш код для вызова RapidAPI
-        # Например, что-то вроде этого:
-        # api_url = f"https://{RAPIDAPI_HOST}/api/generate"
-        # headers = {
-        #     "x-rapidapi-key": RAPIDAPI_KEY,
-        #     "x-rapidapi-host": RAPIDAPI_HOST,
-        #     "Content-Type": "application/json"
-        # }
-        # payload = {"prompt": prompt}
-        # response = requests.post(api_url, json=payload, headers=headers)
-        # response.raise_for_status() # Вызовет исключение при ошибке
-        # music_data = response.json()
-
-        # Имитируем успешный ответ
-        music_data = {
-            'audio_url': 'https://cdn.pixabay.com/download/audio/2022/11/17/audio_8b8a54a3b7.mp3?filename=fun-punk-opener-12-3475.mp3'
+        api_url = f"https://{RAPIDAPI_HOST}/api/generate"
+        headers = {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": RAPIDAPI_HOST,
+            "Content-Type": "application/json"
         }
+        payload = {"prompt": prompt}
+        response = requests.post(api_url, json=payload, headers=headers)
+        response.raise_for_status()
+        music_data = response.json()
 
         return jsonify(music_data)
 
+    except requests.exceptions.HTTPError as e:
+        return jsonify({"message": f"Ошибка от Suno API: {e.response.text}"}), e.response.status_code
     except requests.exceptions.RequestException as e:
-        # В случае ошибки откатать списание токенов не будем, т.к. это сложно
-        # и может быть не нужно, если API вернуло ошибку из-за промпта.
         return jsonify({"message": f"Ошибка при обращении к Suno API: {e}"}), 500
     except Exception as e:
         return jsonify({"message": f"Неизвестная ошибка: {e}"}), 500
@@ -147,19 +143,11 @@ def generate_music_route(current_user):
 @app.route('/api/openai/request', methods=['POST'])
 @token_required
 def handle_openai_request(current_user):
-    # Это будет эндпоинт-прокси, который сначала списывает токен, 
-    # а потом делает запрос к OpenAI (логику OpenAI добавим позже)
-    
-    # Пытаемся списать токен
     success, message = consume_user_token(current_user['id'])
     
     if not success:
-        return jsonify({"message": message}), 402 # 402 Payment Required
+        return jsonify({"message": message}), 402
     
-    # TODO: Здесь будет логика запроса к реальному API OpenAI
-    # Сейчас просто имитируем успешный ответ
-    
-    # Возвращаем обновленный баланс
     updated_user = find_user_by_id(current_user['id'])
     new_balance = updated_user['tokens_balance']
     
@@ -171,4 +159,4 @@ def handle_openai_request(current_user):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001) # Убедитесь, что порт не занят
+    app.run(debug=True, port=5001)

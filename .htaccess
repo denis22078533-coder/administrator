@@ -1,0 +1,16 @@
+# php_value display_errors 1
+# php_value error_reporting 32767
+PassengerAppRoot "/var/www/u3482742/data/www/югазин.рф/backend"
+PassengerPython "/var/www/u3482742/data/www/югазин.рф/venv/bin/python"
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Не применять следующее правило, если путь начинается с /api/
+    RewriteCond %{REQUEST_URI} !^/api/
+    
+    # Для всех остальных путей, которых нет на диске, отдавать index.html
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . /index.html [L]
+</IfModule>
