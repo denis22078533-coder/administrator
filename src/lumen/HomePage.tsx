@@ -51,8 +51,6 @@ const BANNERS = [
 ];
 
 const FEATURES = [
-  { emoji: "⚡", title: "Молниеносно", desc: "Сайт готов за 30 секунд" },
-  { emoji: "🧠", title: "Умный ИИ", desc: "Понимает ваш бизнес" },
   { emoji: "🔒", title: "Надёжно", desc: "Хостинг и SSL включены" },
   { emoji: "📊", title: "Масштабируемо", desc: "Растёт вместе с вами" },
 ];
@@ -296,7 +294,7 @@ export default function HomePage({ onGoToChat, onGoToProjects: _onGoToProjects, 
               </div>
               <span className="text-white/20 ml-auto text-sm">→</span>
             </button>
-          ))}
+          ))}\
         </div>
       </div>
 
