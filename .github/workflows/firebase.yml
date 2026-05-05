@@ -1,16 +1,27 @@
-name: Build and Deploy
-on:
+name: Build and Deploy to Firebase Hosting
+
+on: 
   push:
     branches:
       - main
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - run: npm ci && npm run build
-      - uses: w9jds/firebase-action@master
+      - uses: actions/checkout@v3
+      
+      # Установка зависимостей и сборка проекта
+      - name: Install Dependencies and Build
+        run: npm ci && npm run build
+      
+      # Развертывание в Firebase Hosting
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          args: deploy --only hosting
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          # Сюда мы добавим JSON-ключ сервисного аккаунта
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}'
+          channelId: live
+          # !!! ВАЖНО: Замените на ID вашего проекта в Firebase !!!
+          projectId: YOUR_FIREBASE_PROJECT_ID
