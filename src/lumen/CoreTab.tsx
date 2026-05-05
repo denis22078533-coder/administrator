@@ -1,1 +1,62 @@
-import Icon from \\\"@/components/ui/icon\\\";\\n\\ninterface CoreTabProps {\\n  onOpenSettings: () => void;\\n}\\n\\nexport default function CoreTab({ onOpenSettings }: CoreTabProps) {\\n  const coreFeatures = [\\n    {\\n      name: \\\"База данных\\\",\\n      description: \\\"Таблицы, миграции, SQL\\\",\\n      icon: \\\"Database\\\",\\n      color: \\\"text-cyan-400\\\",\\n      action: () => alert(\\\"Управление базами данных скоро появится!\\\"),\\n    },\\n    {\\n      name: \\\"Функции\\\",\\n      description: \\\"Серверная логика, API\\\",\\n      icon: \\\"FunctionSquare\\\",\\n      color: \\\"text-emerald-400\\\",\\n      action: () => alert(\\\"Редактор серверных функций скоро появится!\\\"),\\n    },\\n    {\\n      name: \\\"Секреты\\\",\\n      description: \\\"Ключи API, переменные\\\",\\n      icon: \\\"KeyRound\\\",\\n      color: \\\"text-amber-400\\\",\\n      action: onOpenSettings,\\n    },\\n    {\\n      name: \\\"Хранилище\\\",\\n      description: \\\"Файлы и изображения\\\",\\n      icon: \\\"HardDrive\\\",\\n      color: \\\"text-purple-400\\\",\\n      action: () => alert(\\\"Файловое хранилище скоро появится!\\\"),\\n    },\\n  ];\\n\\n  return (\\n    <div className=\\\"flex flex-col h-full bg-[#0a0a0f] p-4\\\">\\n      <div className=\\\"text-center mb-6\\\">\\n        <h2 className=\\\"text-white font-semibold text-lg\\\">Ядро проекта</h2>\\n        <p className=\\\"text-white/40 text-sm\\\">Управление бэкенд-компонентами вашего приложения</p>\\n      </div>\\n      <div className=\\\"grid grid-cols-2 gap-3\\\">\\n        {coreFeatures.map((feature) => (\\n          <button\\n            key={feature.name}\\n            onClick={feature.action}\\n            className=\\\"bg-[#111118] border border-white/[0.08] rounded-xl p-4 flex flex-col items-start text-left hover:bg-white/[0.04] transition-colors duration-150\\\”\\n          >\\n            <div className=\\\"w-9 h-9 rounded-lg bg-white/[0.05] flex items-center justify-center mb-3\\\">\\n              <Icon name={feature.icon as any} size={18} className={feature.color} />\\n            </div>\\n            <h3 className=\\\"text-white font-semibold text-sm mb-0.5\\\">{feature.name}</h3>\\n            <p className=\\\"text-white/30 text-xs\\\">{feature.description}</p>\\n          </button>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}
+import Icon from "@/components/ui/icon";
+
+interface CoreTabProps {
+  onOpenSettings: () => void;
+}
+
+export default function CoreTab({ onOpenSettings }: CoreTabProps) {
+  const coreFeatures = [
+    {
+      name: "База данных",
+      description: "Таблицы, миграции, SQL",
+      icon: "Database",
+      color: "text-cyan-400",
+      action: () => alert("Управление базами данных скоро появится!"),
+    },
+    {
+      name: "Функции",
+      description: "Серверная логика, API",
+      icon: "FunctionSquare",
+      color: "text-emerald-400",
+      action: () => alert("Редактор серверных функций скоро появится!"),
+    },
+    {
+      name: "Секреты",
+      description: "Ключи API, переменные",
+      icon: "KeyRound",
+      color: "text-amber-400",
+      action: onOpenSettings,
+    },
+    {
+      name: "Хранилище",
+      description: "Файлы и изображения",
+      icon: "HardDrive",
+      color: "text-purple-400",
+      action: () => alert("Файловое хранилище скоро появится!"),
+    },
+  ];
+
+  return (
+    <div className="flex flex-col h-full bg-[#0a0a0f] p-4">
+      <div className="text-center mb-6">
+        <h2 className="text-white font-semibold text-lg">Ядро проекта</h2>
+        <p className="text-white/40 text-sm">Управление бэкенд-компонентами вашего приложения</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {coreFeatures.map((feature) => (
+          <button
+            key={feature.name}
+            onClick={feature.action}
+            className="bg-[#111118] border border-white/[0.08] rounded-xl p-4 flex flex-col items-start text-left hover:bg-white/[0.04] transition-colors duration-150"
+          >
+            <div className="w-9 h-9 rounded-lg bg-white/[0.05] flex items-center justify-center mb-3">
+              <Icon name={feature.icon as any} size={18} className={feature.color} />
+            </div>
+            <h3 className="text-white font-semibold text-sm mb-0.5">{feature.name}</h3>
+            <p className="text-white/30 text-xs">{feature.description}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
