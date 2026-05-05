@@ -1,41 +1,44 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Icon from "@/components/ui/icon";
-import { useApiAuth } from "../../useApiAuth";
 
 interface Props {
-  onLoginSuccess: () => void;
+  login: (email, password) => Promise<boolean>;
+  register: (email, password) => Promise<boolean>;
+  isLoading: boolean;
+  error: string | null;
 }
 
-export default function LumenLoginPage({ onLoginSuccess }: Props) {
+export default function LumenLoginPage({ login, register, isLoading, error: authError }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
-  const { login, register, isLoading, error, clearError } = useApiAuth();
+  const [internalError, setInternalError] = useState<string | null>(null);
 
   const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     emailInputRef.current?.focus();
   }, [mode]);
+  
+  useEffect(() => {
+      setInternalError(authError);
+  }, [authError]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim() || isLoading) return;
 
-    let success = false;
     if (mode === "login") {
-      success = await login(email, password);
+      await login(email, password);
     } else {
-      success = await register(email, password);
-    }
-
-    if (success) {
-      onLoginSuccess();
+      await register(email, password);
     }
   };
+
+  const clearError = () => setInternalError(null);
 
   const toggleMode = () => {
     setMode(mode === "login" ? "register" : "login");
@@ -73,7 +76,7 @@ export default function LumenLoginPage({ onLoginSuccess }: Props) {
               onChange={e => { setEmail(e.target.value); clearError(); }}
               placeholder="Email"
               autoComplete="email"
-              className={`w-full h-11 bg-white/[0.05] border rounded-xl px-4 text-white text-sm placeholder:text-white/20 outline-none transition-all ${error ? "border-red-500/50" : "border-white/[0.08] focus:border-[#9333ea]/50"}`}
+              className={`w-full h-11 bg-white/[0.05] border rounded-xl px-4 text-white text-sm placeholder:text-white/20 outline-none transition-all ${internalError ? "border-red-500/50" : "border-white/[0.08] focus:border-[#9333ea]/50"}`}
             />
 
             <div className="relative">
@@ -83,7 +86,7 @@ export default function LumenLoginPage({ onLoginSuccess }: Props) {
                 onChange={e => { setPassword(e.target.value); clearError(); }}
                 placeholder="Пароль"
                 autoComplete={mode === 'login' ? "current-password" : "new-password"}
-                className={`w-full h-11 bg-white/[0.05] border rounded-xl px-4 pr-11 text-white text-sm placeholder:text-white/20 outline-none transition-all ${error ? "border-red-500/50" : "border-white/[0.08] focus:border-[#9333ea]/50"}`}
+                className={`w-full h-11 bg-white/[0.05] border rounded-xl px-4 pr-11 text-white text-sm placeholder:text-white/20 outline-none transition-all ${internalError ? "border-red-500/50" : "border-white/[0.08] focus:border-[#9333ea]/50"}`}
               />
               <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors">
                 <Icon name={showPassword ? "EyeOff" : "Eye"} size={15} />
@@ -91,10 +94,10 @@ export default function LumenLoginPage({ onLoginSuccess }: Props) {
             </div>
 
             <AnimatePresence>
-              {error && (
+              {internalError && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto"}} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-red-400 text-xs">
                   <Icon name="AlertCircle" size={13} />
-                  {error}
+                  {internalError}
                 </motion.div>
               )}
             </AnimatePresence>

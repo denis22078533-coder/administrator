@@ -58,7 +58,7 @@ const DEFAULT_SETTINGS: Settings = {
 let msgCounter = 0;
 
 export default function LumenApp() {
-  const { user, token, logout, isTester, toggleTesterMode, resetBalance, displayBalance, spendBalance } = useApiAuth();
+  const { user, token, login, register, authError, isLoading: isAuthLoading, logout, isTester, toggleTesterMode, resetBalance, displayBalance, spendBalance } = useApiAuth();
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
 
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -1224,7 +1224,12 @@ ${PROJECT_STRUCTURE}`;
     <AnimatePresence mode="wait">
       {!token || !user ? (
         <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-          <LumenLoginPage onLoginSuccess={() => { /* re-renders automatically after auth */ }} />
+           <LumenLoginPage 
+                login={login} 
+                register={register} 
+                error={authError} 
+                isLoading={isAuthLoading} 
+            />
         </motion.div>
       ) : (
         <motion.div
