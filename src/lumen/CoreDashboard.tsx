@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion } from 'framer-motion';
 import Icon from '@/components/ui/icon';
 
@@ -11,9 +12,9 @@ const cardIcon = "w-12 h-12 rounded-xl bg-white/5 flex items-center justify-cent
 const CoreDashboard = ({ onOpenSettings }: CoreDashboardProps) => {
   const coreFeatures = [
     { name: 'База данных', icon: 'Database', action: () => alert('Управление базой данных (в разработке)') },
-    { name: 'Функции', icon: 'FunctionSquare', action: () => alert('Управление серверными функциями (в разработке)') },
-    { name: 'Секреты', icon: 'KeyRound', action: onOpenSettings },
-    { name: 'Хранилище', icon: 'HardDrive', action: () => alert('Управление файлами (в разработке)') },
+    { name: 'Функции', icon: 'Zap', action: () => alert('Управление серверными функциями (в разработке)') },
+    { name: 'Секреты', icon: 'Key', action: onOpenSettings },
+    { name: 'Хранилище', icon: 'Folder', action: () => alert('Управление файлами (в разработке)') },
   ];
 
   return (
