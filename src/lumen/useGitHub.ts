@@ -14,11 +14,11 @@ export interface GitHubSettings {
 
 const DEFAULT: GitHubSettings = {
   token: "",
-  repo: "denis22078533-coder/Lumin-platform",
+  repo: "denis22078533-coder/muravey",
   filePath: "index.html",
   siteUrl: "",
   engineToken: "",
-  engineRepo: "",
+  engineRepo: "denis22078533-coder/administrator",
   engineBranch: "main",
 };
 
