@@ -83,12 +83,12 @@ Core stack: HTML/CSS/JS, React, TypeScript, Python 3.11, PostgreSQL/MySQL, REST 
 
 ## Architecture thinking:
 When user asks for a complex feature — FIRST output a short plan:
-\\`\\`\\`
+\`\`\`
 [Архитектура]
 БД: таблицы + ключевые поля
 Фронт: компоненты + flow
 API: эндпоинты
-\\`\\`\\`
+\`\`\`
 Then implement.
 ${PROJECT_STRUCTURE}`;
 
@@ -161,27 +161,28 @@ const SELF_EDIT_SYSTEM_PROMPT = (repo: string, branch: string) =>
 You have READ and WRITE access to the Муравей (Ant) platform source code via GitHub API.
 Engine Repository: ${repo} (branch: ${branch})\n
 To list files in a directory:
-\\`\\`\\`action
+\`\`\`action
 {"action":"list","path":"src/lumen"}
-\\`\\`\\`\n
+\`\`\`\n
 To read ONE file:
-\\`\\`\\`action
+\`\`\`action
 {"action":"read","path":"src/lumen/LumenApp.tsx"}
-\\`\\`\\`\n
+\`\`\`\n
 To read MULTIPLE files at once:
-\\`\\`\\`action
+\`\`\`action
 {"action":"read_multiple","paths":["src/lumen/LumenApp.tsx","src/lumen/ChatPanel.tsx"]}
-\\`\\`\\`\n
+\`\`\`\n
 To write/modify a file:
-\\`\\`\\`action
+\`\`\`action
 {"action":"write","path":"src/lumen/SomeFile.tsx","content":"...full file content..."}
-\\`\\`\\`\n
+\`\`\`\n
 Workflow:
 1. Use list to explore directories
 2. Use read_multiple to read several files at once (faster!)
 3. Plan minimal changes
-4. WRITE complete updated file content
-5. Confirm changes\n
+4. You can perform multiple actions (read, write, list) in a single response if needed to solve the task.
+5. WRITE complete updated file content
+6. Confirm changes\n
 Rules:
 - Always read before writing
 - Prefer read_multiple over multiple single reads
@@ -329,7 +330,7 @@ export default function LumenApp() {
     if (!JSZip) throw new Error("JSZip ещё не загружен, попробуйте ещё раз");
     const zip = await JSZip.loadAsync(file);
     const result: Record<string, string> = {};
-    const textExts = [".tsx", ".ts", ".jsx", ".js", ".css", ".html", ".json", ".md", ".svg"];
+    const textExts = [".tsx", ".ts", ".jsx", ".js", ".css", ".html", ".json", ".md", ".svg", ".py", ".sh", ".env", ".yaml"];
     const skipDirs = ["node_modules", ".git", "dist", "build", ".next"];
 
     const promises: Promise<void>[] = [];
@@ -421,11 +422,11 @@ export default function LumenApp() {
         console.log("[ZIP] Assets найдено:", Object.keys(zipAssets));
 
         // Заменяем <link rel="stylesheet" href="..."> на инлайн <style>
-        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=["\']stylesheet["\'][^>]*href=["\']([^"\']+)["\'][^>]*\\/?>/gi, (match, href) => {
+        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
-            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\\//, "")));
+            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
           if (key && zipAssets[key]) {
             console.log("[ZIP] Инлайн CSS:", key);
             return `<style>${zipAssets[key]}</style>`;
@@ -434,14 +435,14 @@ export default function LumenApp() {
         });
 
         // Заменяем <script src="..."> на инлайн <script>
-        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=["\']([^"\']+)["\']([^>]*)><\\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=["']([^"']+)["']([^>]*)><\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
-            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\\//, "")));
+            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
           if (key && zipAssets[key]) {
             console.log("[ZIP] Инлайн JS:", key);
-            const attrs = (pre + post).replace(/\\s*src=["\'][^"\']*["\']/gi, "").replace(/\\s*type=["\']module["\']/gi, "");
+            const attrs = (pre + post).replace(/\s*src=["'][^"']*["']/gi, "").replace(/\s*type=["']module["']/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
           return match;
@@ -466,7 +467,7 @@ export default function LumenApp() {
 
         const filesContext = Object.entries(files)
           .sort(([a], [b]) => a.localeCompare(b))
-          .map(([path, content]) => `\\n\\n### Файл: ${path}\\n\\`\\`\\`\\n${content.slice(0, 6000)}\\n\\`\\`\\``)
+          .map(([path, content]) => `\n\n### Файл: ${path}\n\`\`\`\n${content.slice(0, 6000)}\n\`\`\``)
           .join("");
 
         const zipPrompt = `Конвертируй этот React/Vite проект (${fileCount} файлов) в один HTML файл. Сохрани все тексты, цвета и структуру точно как в оригинале. Верни ТОЛЬКО HTML.\n\n--- ФАЙЛЫ ПРОЕКТА ---${filesContext}\n--- КОНЕЦ ФАЙЛОВ ---`;
@@ -507,14 +508,14 @@ export default function LumenApp() {
   }, [settings, liveUrl]);
 
   const extractArtifact = (raw: string): { text: string; artifact: string } => {
-    const artifactMatch = raw.match(/<boltArtifact>([\\s\\S]*?)<\\/boltArtifact>/i);
+    const artifactMatch = raw.match(/<boltArtifact>([\s\S]*?)<\/boltArtifact>/i);
     if (artifactMatch && artifactMatch[1]) {
       const artifact = artifactMatch[1].trim();
       const text = raw.substring(0, artifactMatch.index).trim() || "Готово! Внес изменения в код.";
       return { text, artifact };
     }
     // Fallback if the AI forgets the tag
-    const mdMatch = raw.match(/```(?:html)?\\s*([\\s\\S]*?)```/i);
+    const mdMatch = raw.match(/```(?:html)?\s*([\s\S]*?)```/i);
     if (mdMatch && mdMatch[1]) {
         return { text: "Готово, вот код:", artifact: mdMatch[1].trim() };
     }
@@ -524,8 +525,8 @@ export default function LumenApp() {
   // Инжектирует принудительный светлый фон если в HTML нет явного светлого background
   const injectLightTheme = (html: string): string => {
     const forceCss = `<style data-lumen-fix>\n      html,body{background:#ffffff!important;color:#111111!important;}\n    </style>`;
-    if (/<\\/head>/i.test(html)) {
-      return html.replace(/<\\/head>/i, `${forceCss}</head>`);
+    if (/<\/head>/i.test(html)) {
+      return html.replace(/<\/head>/i, `${forceCss}</head>`);
     }
     if (/<body/i.test(html)) {
       return html.replace(/<body([^>]*)>/i, `<head>${forceCss}</head><body$1>`);
@@ -538,28 +539,28 @@ export default function LumenApp() {
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     // Если уже есть <base> тег — заменяем его
-    if (/<base\\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\\s[^>]*href=["\'][^"\']*["\'][^>]*>/i, `<base href="${base}">`);
+    if (/<base\s[^>]*href/i.test(html)) {
+      return html.replace(/<base\s[^>]*href=["'][^"']*["'][^>]*>/i, `<base href="${base}">`);
     }
     // Иначе вставляем сразу после <head>
     if (/<head>/i.test(html)) {
-      return html.replace(/<head>/i, `<head>\\n  <base href="${base}">`);
+      return html.replace(/<head>/i, `<head>\n  <base href="${base}">`);
     }
     // Fallback — вставляем после <html>
     if (/<html[^>]*>/i.test(html)) {
-      return html.replace(/(<html[^>]*>)/i, `$1\\n<head><base href="${base}"></head>`);
+      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href="${base}"></head>`);
     }
     return html;
   };
 
-  const buildChatHistory = (currentUserText: string, maxPairs = 8): { role: string; content: string }[] => {
+  const buildChatHistory = (currentUserText: string, maxPairs = 25): { role: string; content: string }[] => {
     // Берём последние maxPairs пар (user+assistant) из истории, исключая картинки и длинный HTML
     const history: { role: string; content: string }[] = [];
     const recent = messages.slice(-maxPairs * 2);
     for (const msg of recent) {
       if (msg.html?.startsWith("__IMAGE__:")) continue; // пропускаем картинки
       const content = msg.html
-        ? msg.html.length > 8000 ? msg.text + "\\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
+        ? msg.html.length > 64000 ? msg.text + "\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
         : msg.text;
       history.push({ role: msg.role === "user" ? "user" : "assistant", content });
     }
@@ -567,8 +568,8 @@ export default function LumenApp() {
     return history;
   };
 
-  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 120_000): Promise<string> => {
-    const rawBase = (settings.baseUrl || "").trim().replace(/\\/+$/, "");
+  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 300000): Promise<string> => {
+    const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
     const isOpenAI = settings.provider === "openai";
 
     const chatMessages = useHistory
@@ -586,7 +587,7 @@ export default function LumenApp() {
 
     if (isOpenAI) {
       const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
-      const parsedHost = base.replace(/^https?:\\/\\//, "").split("/")[0].toLowerCase();
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
       if (PROXYAPI_HOSTS.has(parsedHost)) {
         endpoint = "https://api.proxyapi.ru/openai/v1/chat/completions";
       } else if (base.endsWith("/chat/completions")) {
@@ -607,7 +608,7 @@ export default function LumenApp() {
       };
     } else {
       const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
-      const parsedHost = base.replace(/^https?:\\/\\//, "").split("/")[0].toLowerCase();
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
       if (PROXYAPI_HOSTS.has(parsedHost)) {
         endpoint = "https://api.proxyapi.ru/anthropic/v1/messages";
       } else if (base.endsWith("/messages")) {
@@ -743,23 +744,23 @@ export default function LumenApp() {
       return { error: `Сетевая ошибка при чтении ${path}: ${String(e)}` };
     }
     if (res.status === 401) return { error: `Ошибка авторизации (401). Проверьте токен GitHub в настройках Engine.` };
-    if (res.status === 403) return { error: `Нет доступа (403) к файлу \\`${path}\\`. Проверьте права токена.` };
-    if (res.status === 404) return { error: `Файл не найден (404): \\`${path}\\` в репозитории ${repo}` };
-    if (!res.ok) return { error: `GitHub API вернул HTTP ${res.status} для \\`${path}\\`` };
+    if (res.status === 403) return { error: `Нет доступа (403) к файлу \`${path}\`. Проверьте права токена.` };
+    if (res.status === 404) return { error: `Файл не найден (404): \`${path}\` в репозитории ${repo}` };
+    if (!res.ok) return { error: `GitHub API вернул HTTP ${res.status} для \`${path}\`` };
 
     let data: { content?: string; type?: string; message?: string };
-    try { data = await res.json(); } catch { return { error: `Не удалось разобрать ответ GitHub для \\`${path}\\`` }; }
+    try { data = await res.json(); } catch { return { error: `Не удалось разобрать ответ GitHub для \`${path}\`` }; }
 
     if (data.message) return { error: `GitHub: ${data.message}` };
-    if (!data.content) return { error: `Файл \\`${path}\\` пуст или является директорией` };
+    if (!data.content) return { error: `Файл \`${path}\` пуст или является директорией` };
 
     // Корректное декодирование base64 → UTF-8 (работает с кириллицей и любыми символами)
     try {
-      const b64 = data.content.replace(/\\s/g, "");
+      const b64 = data.content.replace(/\s/g, "");
       const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
       return { content: new TextDecoder("utf-8").decode(bytes) };
     } catch (e) {
-      return { error: `Ошибка декодирования файла \\`${path}\\`: ${String(e)}` };
+      return { error: `Ошибка декодирования файла \`${path}\`: ${String(e)}` };
     }
   };
 
@@ -772,15 +773,15 @@ export default function LumenApp() {
     const branch = ghSettings.branch || "main";
     try {
       const repoInfo = token && repo
-        ? `\\n\\nПодключён GitHub репозиторий: ${repo} (ветка: ${branch}).
+        ? `\n\nПодключён GitHub репозиторий: ${repo} (ветка: ${branch}).
 Доступны action-блоки для работы с файлами:
-- Список файлов в директории: \\`{"action":"list","path":"src/lumen"}\\`
-- Прочитать один файл: \\`{"action":"read","path":"src/App.tsx"}\\`
-- Прочитать несколько файлов сразу: \\`{"action":"read_multiple","paths":["src/App.tsx","src/lumen/LumenApp.tsx"]}\\`
+- Список файлов в директории: \`{"action":"list","path":"src/lumen"}\`
+- Прочитать один файл: \`{"action":"read","path":"src/App.tsx"}\`
+- Прочитать несколько файлов сразу: \`{"action":"read_multiple","paths":["src/App.tsx","src/lumen/LumenApp.tsx"]}\`
 
-Отвечай только один action-блок за раз. После получения файлов — сразу выполни задачу.`
+Ты можешь выполнять несколько действий (read, write, list) в одном ответе, если это необходимо для решения задачи.`
         : "";
-      const chatSystemPrompt = `Ты дружелюбный AI-ассистент Муравей. Отвечай кратко и по делу на русском языке. Помогай с вопросами о сайтах, бизнесе, маркетинге и всём остальном.${repoInfo}\n${PROJECT_STRUCTURE}`;
+      const chatSystemPrompt = `Давай содержательные отчеты о работе на русском языке. Будь лаконичен в описании, но не ограничивай длину генерируемого кода. Помогай с вопросами о сайтах, бизнесе, маркетинге и всём остальном.${repoInfo}\n${PROJECT_STRUCTURE}`;
 
       // ── Шаг 1: первый вызов ИИ ────────────────────────────────────────────
       const response = await callAI(
@@ -791,73 +792,80 @@ export default function LumenApp() {
       );
 
       // ── Шаг 2: обрабатываем action-блоки ─────────────────────────────────
-      const actionMatch = response.match(/```action\\s*([\\s\\S]*?)```/);
+      const actionMatch = response.match(/```action\s*([\s\S]*?)```/g);
       if (actionMatch && token && repo) {
-        let actionData: { action: string; path?: string; paths?: string[] };
-        try { actionData = JSON.parse(actionMatch[1].trim()); } catch { actionData = { action: "none" }; }
-        const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
-
-        // action: list
-        if (actionData.action === "list" && actionData.path) {
-          setCycleLabel(`Читаю директорию ${actionData.path}...`);
-          const listing = await listDirFromGitHub(actionData.path, token, repo, branch);
-          if (listing) {
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nСодержимое \\`${actionData.path}\\`:\\n\\`\\`\\`\\n${listing}\\n\\`\\`\\``.trim() }]);
-            setCycleLabel("Анализирую список...");
-            const response2 = await callAI(chatSystemPrompt, `Директория ${actionData.path}:\\n${listing}\\n\\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
-            setCycleStatus("done"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
-          } else {
-            setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nНе удалось прочитать директорию \\`${actionData.path}\\`.`.trim() }]);
-          }
-          return;
+        
+        const actions: any[] = [];
+        for (const match of actionMatch) {
+          try {
+            actions.push(JSON.parse(match.replace(/```action\s*|```/g, "").trim()));
+          } catch (e) { console.error("Invalid action JSON:", e) }
         }
 
-        // action: read_multiple
-        if (actionData.action === "read_multiple" && actionData.paths?.length) {
-          const filesContent: string[] = [];
-          const errors: string[] = [];
-          for (let i = 0; i < actionData.paths.length; i++) {
-            const p = actionData.paths[i];
-            setCycleLabel(`Читаю файл ${i + 1}/${actionData.paths.length}: ${p}`);
-            const result = await readFileFromGitHub(p, token, repo, branch);
-            if (result.content !== undefined) {
-              const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
-              filesContent.push(`### ${p} (${sizeStr})\\n\\`\\`\\`\\n${body}\\n\\`\\`\\``);
+        let currentText = response.replace(/```action[\s\S]*?```/g, "").trim();
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: currentText }]);
+
+        for (const actionData of actions) {
+          currentText = ""; // Clear previous action text
+
+          // action: list
+          if (actionData.action === "list" && actionData.path) {
+            setCycleLabel(`Читаю директорию ${actionData.path}...`);
+            const listing = await listDirFromGitHub(actionData.path, token, repo, branch);
+            if (listing) {
+              currentText = `Содержимое \`${actionData.path}\`:\n\`\`\`\n${listing}\n\`\`\``;
             } else {
-              errors.push(`⚠️ ${p}: ${result.error}`);
-              filesContent.push(`### ${p}\\n[${result.error}]`);
+              currentText = `Не удалось прочитать директорию \`${actionData.path}\`.`;
+              setCycleStatus("error");
             }
           }
-          const errNote = errors.length ? `\\n\\n${errors.join("\\n")}` : "";
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nПрочитал ${filesContent.length} файл(ов).${errNote}\\nАнализирую...`.trim() }]);
-          setCycleLabel(`Анализирую ${filesContent.length} файлов...`);
-          const response2 = await callAI(chatSystemPrompt, `Файлы:\\n\\n${filesContent.join("\\n\\n")}\\n\\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
-          setCycleStatus("done"); setCycleLabel("");
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
-          return;
+
+          // action: read_multiple
+          else if (actionData.action === "read_multiple" && actionData.paths?.length) {
+            const filesContent: string[] = [];
+            const errors: string[] = [];
+            for (let i = 0; i < actionData.paths.length; i++) {
+              const p = actionData.paths[i];
+              setCycleLabel(`Читаю файл ${i + 1}/${actionData.paths.length}: ${p}`);
+              const result = await readFileFromGitHub(p, token, repo, branch);
+              if (result.content !== undefined) {
+                const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+                const body = result.content.length > 64000 ? result.content.slice(0, 64000) + "\n... [обрезан]" : result.content;
+                filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
+              } else {
+                errors.push(`⚠️ ${p}: ${result.error}`);
+                filesContent.push(`### ${p}\n[${result.error}]`);
+              }
+            }
+            const errNote = errors.length ? `\n\n${errors.join("\n")}` : "";
+            currentText = `Прочитал ${filesContent.length} файл(ов).${errNote}`;
+          }
+
+          // action: read (один файл)
+          else if (actionData.action === "read" && actionData.path) {
+            setCycleLabel(`Читаю ${actionData.path}...`);
+            const result = await readFileFromGitHub(actionData.path, token, repo, branch);
+            if (result.content !== undefined) {
+              const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+              const truncated = result.content.length > 64000 ? result.content.slice(0, 64000) + "\n... [обрезан]" : result.content;
+              currentText = `Прочитал \`${actionData.path}\` (${sizeStr}).`;
+            } else {
+              currentText = `❌ ${result.error}`;
+              setCycleStatus("error");
+            }
+          }
+
+          if (currentText) {
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: currentText }]);
+          }
         }
 
-        // action: read (один файл)
-        if (actionData.action === "read" && actionData.path) {
-          setCycleLabel(`Читаю ${actionData.path}...`);
-          const result = await readFileFromGitHub(actionData.path, token, repo, branch);
-          if (result.content !== undefined) {
-            const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-            const truncated = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nПрочитал \\`${actionData.path}\\` (${sizeStr}). Анализирую...`.trim() }]);
-            setCycleLabel("Анализирую...");
-            const response2 = await callAI(chatSystemPrompt, `Файл \\`${actionData.path}\\`:\\n\\`\\`\\`\\n${truncated}\\n\\`\\`\\`\\n\\nЗадача: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
-            setCycleStatus("done"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
-          } else {
-            setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ ${result.error}`.trim() }]);
-          }
-          return;
-        }
+        setCycleLabel("Анализирую...");
+        const finalResponse = await callAI(chatSystemPrompt, `Я получил запрошенную информацию. Теперь выполни оригинальный запрос: ${text}`, (c) => setCycleLabel(`Анализирую... ${c} симв.`), true);
+        setCycleStatus("done"); setCycleLabel("");
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: finalResponse }]);
+        return;
+
       }
 
       setCycleStatus("done");
@@ -884,7 +892,7 @@ export default function LumenApp() {
       );
       let parsed: { sql: string; explanation: string };
       try {
-        const match = raw.match(/\\{[\\s\\S]*\\}/);
+        const match = raw.match(/\{[\s\S]*\}/);
         parsed = JSON.parse(match ? match[0] : raw);
       } catch {
         parsed = { sql: raw, explanation: "SQL-миграция сгенерирована." };
@@ -894,7 +902,7 @@ export default function LumenApp() {
       setCycleLabel("");
       setMessages(prev => [...prev, {
         id: ++msgCounter, role: "assistant",
-        text: `SQL-миграция готова\\n\\n${parsed.explanation}\\n\\n${parsed.sql}\\n\\nНажмите кнопку «Скопировать SQL» ниже.`,
+        text: `SQL-миграция готова\n\n${parsed.explanation}\n\n${parsed.sql}\n\nНажмите кнопку «Скопировать SQL» ниже.`,
       }]);
     } catch (err) {
       setCycleStatus("error");
@@ -911,7 +919,7 @@ export default function LumenApp() {
     const data = await res.json() as { name: string; type: string; size: number }[];
     if (!Array.isArray(data)) return null;
     const lines = data.map(f => `${f.type === "dir" ? "📁" : "📄"} ${dirPath}/${f.name}${f.type === "file" ? ` (${f.size} байт)` : ""}`);
-    return lines.join("\\n");
+    return lines.join("\n");
   };
 
   // ── Self-Edit Mode — ИИ читает/пишет файлы платформы через GitHub API ────────
@@ -925,7 +933,7 @@ export default function LumenApp() {
     if (!engineToken || !engineRepo) {
       setMessages(prev => [...prev, {
         id: ++msgCounter, role: "assistant",
-        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\\n\\nОткройте **Настройки → Self-Edit / Engine GitHub** и заполните:\\n- Engine Token (GitHub Personal Access Token)\\n- Engine Repository (например: `your-user/your-repo`)\\n- Engine Branch (обычно `main`)",
+        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\n\nОткройте **Настройки → Self-Edit / Engine GitHub** и заполните:\n- Engine Token (GitHub Personal Access Token)\n- Engine Repository (например: `your-user/your-repo`)\n- Engine Branch (обычно `main`)",
       }]);
       return;
     }
@@ -937,141 +945,111 @@ export default function LumenApp() {
       const response = await callAI(systemPrompt, text, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
 
       // Парсим action-блоки из ответа ИИ
-      const actionMatch = response.match(/```action\\s*([\\s\\S]*?)```/);
-      if (actionMatch && engineToken) {
-        let actionData: { action: string; path?: string; paths?: string[]; content?: string };
-        try { actionData = JSON.parse(actionMatch[1].trim()); } catch { actionData = { action: "none" }; }
-
-        // action: list — список файлов в директории
-        if (actionData.action === "list" && actionData.path) {
-          setCycleLabel("Self-Edit: читаю директорию...");
-          const listing = await listDirFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
-          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
-          if (listing) {
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nСодержимое \\`${actionData.path}\\`:\\n\\`\\`\\`\\n${listing}\\n\\`\\`\\``.trim() }]);
-            const response2 = await callAI(systemPrompt, `Содержимое директории ${actionData.path}:\\n${listing}\\n\\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
-            setCycleStatus("done"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
-          } else {
-            setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nНе удалось прочитать директорию \\`${actionData.path}\\`.`.trim() }]);
-          }
-          return;
+      const actionMatches = response.match(/```action\s*([\s\S]*?)```/g);
+      if (actionMatches && engineToken) {
+        const actions: any[] = [];
+        for (const match of actionMatches) {
+          try {
+            actions.push(JSON.parse(match.replace(/```action\s*|```/g, "").trim()));
+          } catch (e) { console.error("Invalid action JSON:", e) }
         }
 
-        // action: read_multiple — читаем несколько файлов за раз
-        if (actionData.action === "read_multiple" && actionData.paths && actionData.paths.length > 0) {
-          setCycleLabel("Self-Edit: читаю файлы...");
-          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
-          const filesContent: string[] = [];
-          for (let i = 0; i < actionData.paths.length; i++) {
-            const p = actionData.paths[i];
-            setCycleLabel(`Self-Edit: читаю ${i + 1}/${actionData.paths.length}...`);
-            const result = await readFileFromGitHub(p, engineToken, engineRepo, engineBranch);
+        let currentText = response.replace(/```action[\s\S]*?```/g, "").trim();
+        if (currentText) {
+          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: currentText }]);
+        }
+
+        let followUpPrompt = "";
+
+        for (const actionData of actions) {
+          // action: list
+          if (actionData.action === "list" && actionData.path) {
+            setCycleLabel(`Self-Edit: читаю директорию...`);
+            const listing = await listDirFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
+            if (listing) {
+              followUpPrompt += `Содержимое директории ${actionData.path}:\n${listing}\n\n`;
+            } else {
+              followUpPrompt += `Не удалось прочитать директорию ${actionData.path}.\n`;
+            }
+          }
+
+          // action: read_multiple
+          else if (actionData.action === "read_multiple" && actionData.paths && actionData.paths.length > 0) {
+            setCycleLabel("Self-Edit: читаю файлы...");
+            const filesContent: string[] = [];
+            for (let i = 0; i < actionData.paths.length; i++) {
+              const p = actionData.paths[i];
+              setCycleLabel(`Self-Edit: читаю ${i + 1}/${actionData.paths.length}...`);
+              const result = await readFileFromGitHub(p, engineToken, engineRepo, engineBranch);
+              if (result.content !== undefined) {
+                const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
+                const body = result.content.length > 64000 ? result.content.slice(0, 64000) + "\n... [обрезан]" : result.content;
+                filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
+              } else {
+                filesContent.push(`### ${p}\n[${result.error}]`);
+              }
+            }
+            followUpPrompt += `Содержимое файлов:\n\n${filesContent.join("\n\n")}\n\n`;
+          }
+
+          // action: read
+          else if (actionData.action === "read" && actionData.path) {
+            setCycleLabel(`Self-Edit: читаю ${actionData.path}...`);
+            const result = await readFileFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
             if (result.content !== undefined) {
               const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-              const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
-              filesContent.push(`### ${p} (${sizeStr})\\n\\`\\`\\`\\n${body}\\n\\`\\`\\``);
+              const body = result.content.length > 64000 ? result.content.slice(0, 64000) + "\n... [обрезан]" : result.content;
+              followUpPrompt += `Файл ${actionData.path}:\n\`\`\`\n${body}\n\`\`\`\n\n`;
             } else {
-              filesContent.push(`### ${p}\\n[${result.error}]`);
+              followUpPrompt += `❌ ${result.error}\n`;
             }
           }
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\nПрочитал ${filesContent.length} файл(ов). Анализирую...`.trim() }]);
-          const response2 = await callAI(systemPrompt, `Содержимое файлов:\\n\\n${filesContent.join("\\n\\n")}\\n\\nТеперь выполни запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
-          setCycleStatus("done"); setCycleLabel("");
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
-          return;
-        }
+          
+          // action: write
+          else if (actionData.action === "write" && actionData.path && actionData.content) {
+            setCycleLabel(`Self-Edit: сохраняю ${actionData.path}...`);
+            const apiUrl = `https://api.github.com/repos/${engineRepo}/contents/${encodeURIComponent(actionData.path).replace(/%2F/g, "/")}`;
+            let sha = "";
+            try {
+              const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(engineBranch)}`, {
+                headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json" },
+              });
+              if (getRes.ok) sha = (await getRes.json()).sha || "";
+            } catch {}
 
-        if (actionData.action === "read" && actionData.path) {
-          setCycleLabel(`Self-Edit: читаю ${actionData.path}...`);
-          const result = await readFileFromGitHub(actionData.path, engineToken, engineRepo, engineBranch);
-          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
-          if (result.content !== undefined) {
-            const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
-            const body = result.content.length > 8000 ? result.content.slice(0, 8000) + "\\n... [обрезан]" : result.content;
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n📄 \\`${actionData.path}\\` (${sizeStr}) — прочитан. Анализирую...`.trim() }]);
-            setCycleLabel("Self-Edit: анализирую...");
-            const response2 = await callAI(systemPrompt, `Файл ${actionData.path}:\\n\\`\\`\\`\\n${body}\\n\\`\\`\\`\\n\\nТеперь выполни оригинальный запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
-            setCycleStatus("done"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
-            return;
-          } else {
-            setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ ${result.error}`.trim() }]);
-            return;
-          }
-        }
+            const utf8Bytes = new TextEncoder().encode(actionData.content);
+            const contentB64 = btoa(String.fromCharCode(...utf8Bytes));
+            
+            const reqBody: Record<string, string> = {
+              message: `Муравей: обновил ${actionData.path}`,
+              content: contentB64,
+              branch: engineBranch,
+            };
+            if (sha) reqBody.sha = sha;
 
-        if (actionData.action === "write" && actionData.path && actionData.content) {
-          setCycleLabel(`Self-Edit: сохраняю ${actionData.path}...`);
-          const cleanResponse = response.replace(/```action[\\s\\S]*?```/, "").trim();
-          const apiUrl = `https://api.github.com/repos/${engineRepo}/contents/${encodeURIComponent(actionData.path).replace(/%2F/g, "/")}`;
-
-          // Получаем текущий SHA (нужен для обновления существующего файла)
-          let sha = "";
-          try {
-            const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(engineBranch)}`, {
-              headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json" },
-            });
-            if (getRes.ok) {
-              const d = await getRes.json() as { sha?: string };
-              sha = d.sha || "";
-            } else if (getRes.status !== 404) {
-              const d = await getRes.json().catch(() => ({})) as { message?: string };
-              setCycleStatus("error"); setCycleLabel("");
-              setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Ошибка получения SHA файла \\`${actionData.path}\\`: HTTP ${getRes.status} ${d.message || ""}`.trim() }]);
-              return;
-            }
-          } catch (e) {
-            setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Сетевая ошибка при чтении SHA: ${String(e)}`.trim() }]);
-            return;
-          }
-
-          // Правильное кодирование UTF-8 → base64 через TextEncoder
-          const utf8Bytes = new TextEncoder().encode(actionData.content);
-          const b64Chunks: string[] = [];
-          const chunkSize = 8192;
-          for (let i = 0; i < utf8Bytes.length; i += chunkSize) {
-            b64Chunks.push(String.fromCharCode(...utf8Bytes.slice(i, i + chunkSize)));
-          }
-          const contentB64 = btoa(b64Chunks.join(""));
-
-          const reqBody: Record<string, string> = {
-            message: `Муравей: обновил ${actionData.path}`,
-            content: contentB64,
-            branch: engineBranch,
-          };
-          if (sha) reqBody.sha = sha;
-
-          let putRes: Response;
-          try {
-            putRes = await fetch(apiUrl, {
+            const putRes = await fetch(apiUrl, {
               method: "PUT",
-              headers: {
-                Authorization: `Bearer ${engineToken}`,
-                Accept: "application/vnd.github+json",
-                "Content-Type": "application/json",
-              },
+              headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
               body: JSON.stringify(reqBody),
             });
-          } catch (e) {
-            setCycleStatus("error"); setCycleLabel("");
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Сетевая ошибка при записи файла: ${String(e)}`.trim() }]);
-            return;
-          }
 
-          const putData = await putRes.json().catch(() => ({})) as { message?: string; content?: { html_url?: string } };
-          setCycleStatus(putRes.ok ? "done" : "error"); setCycleLabel("");
-          if (putRes.ok) {
-            const fileUrl = putData.content?.html_url ? `\\n🔗 ${putData.content.html_url}` : "";
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n✅ Файл \\`${actionData.path}\\` записан в \\`${engineRepo}\\` (ветка \\`${engineBranch}\\`).${fileUrl}`.trim() }]);
-          } else {
-            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `${cleanResponse}\\n\\n❌ Ошибка записи \\`${actionData.path}\\`: HTTP ${putRes.status} — ${putData.message || "неизвестная ошибка"}`.trim() }]);
+            if (putRes.ok) {
+                setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ Файл \`${actionData.path}\` сохранен.` }]);
+            } else {
+                const putData = await putRes.json().catch(() => ({}));
+                setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `❌ Ошибка записи \`${actionData.path}\`: HTTP ${putRes.status} — ${putData.message || "неизвестная ошибка"}` }]);
+            }
           }
-          return;
         }
+
+        if (followUpPrompt) {
+            const response2 = await callAI(systemPrompt, `${followUpPrompt}Теперь выполни оригинальный запрос: ${text}`, (chars) => setCycleLabel(`Self-Edit: ${chars} симв.`), true);
+            setCycleStatus("done"); setCycleLabel("");
+            setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response2 }]);
+        } else {
+            setCycleStatus("done"); setCycleLabel("");
+        }
+        return;
       }
 
       setCycleStatus("done"); setCycleLabel("");
@@ -1126,7 +1104,7 @@ export default function LumenApp() {
     try {
       // ── Шаг 1: читаем текущий код ─────────────────────────────────────────
       let currentHtml = "";
-      const customAddition = settings.customPrompt?.trim() ? `\\n\\n## Дополнительные инструкции от владельца:\\n${settings.customPrompt.trim()}` : "";
+      const customAddition = settings.customPrompt?.trim() ? `\n\n## Дополнительные инструкции от владельца:\n${settings.customPrompt.trim()}` : "";
       let systemPrompt = CREATE_SYSTEM_PROMPT + customAddition;
 
       if (fullCodeContext) {
@@ -1134,7 +1112,7 @@ export default function LumenApp() {
         systemPrompt = LOCAL_FILE_EDIT_PROMPT(currentHtml, fullCodeContext.fileName) + customAddition;
       } else if (ghSettings.token && ghSettings.repo) {
         setCycleStatus("reading");
-        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
         setCycleLabel(`Читаю ${filePath} из GitHub...`);
         const fetched = await fetchFromGitHub();
         if (fetched.ok && fetched.html) {
@@ -1169,7 +1147,7 @@ export default function LumenApp() {
         );
         let imgPrompts: string[] = [];
         try {
-          const match = imgPromptsRaw.match(/\\[[\\s\\S]*?\\]/);
+          const match = imgPromptsRaw.match(/\[[\s\S]*?\]/);
           if (match) imgPrompts = JSON.parse(match[0]);
         } catch { imgPrompts = []; }
 
@@ -1189,8 +1167,8 @@ export default function LumenApp() {
             } catch { /* продолжаем без этой картинки */ }
           }
           if (generatedUrls.length > 0) {
-            const urlList = generatedUrls.map((u, i) => `URL картинки ${i + 1}: ${u}`).join("\\n");
-            enrichedText = `${text}\\n\\nВАЖНО: Я уже сгенерировал специальные картинки для этого сайта. ОБЯЗАТЕЛЬНО используй их в дизайне:\\n${urlList}\\n\\nТребования к использованию картинок:\\n- Первая картинка — главный баннер/герой секция на всю ширину (object-fit: cover, height: 400-500px)\\n- Остальные картинки — в галерее, карточках или секциях сайта\\n- Все <img> должны иметь style="object-fit: cover" и заданные размеры\\n- НЕ используй placeholder-картинки — только переданные URL`;
+            const urlList = generatedUrls.map((u, i) => `URL картинки ${i + 1}: ${u}`).join("\n");
+            enrichedText = `${text}\n\nВАЖНО: Я уже сгенерировал специальные картинки для этого сайта. ОБЯЗАТЕЛЬНО используй их в дизайне:\n${urlList}\n\nТребования к использованию картинок:\n- Первая картинка — главный баннер/герой секция на всю ширину (object-fit: cover, height: 400-500px)\n- Остальные картинки — в галерее, карточках или секциях сайта\n- Все <img> должны иметь style="object-fit: cover" и заданные размеры\n- НЕ используй placeholder-картинки — только переданные URL`;
           }
         }
       }
@@ -1216,8 +1194,8 @@ export default function LumenApp() {
         return;
       }
       
-      if (!/<[a-z][\\s\\S]*>/i.test(cleanHtml)) {
-        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: \"${cleanHtml.slice(0, 200)}\". Попробуйте ещё раз.`);
+      if (!/<[a-z][\s\S]*>/i.test(cleanHtml)) {
+        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: "${cleanHtml.slice(0, 200)}". Попробуйте ещё раз.`);
       }
 
       if (abortRef.current) return;
@@ -1240,7 +1218,7 @@ export default function LumenApp() {
       // ── Шаг 3: автодеплой в GitHub ───────────────────────────────────────
       if (ghSettings.token && ghSettings.repo) {
         setCycleLabel("Загружаю в GitHub...");
-        const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+        const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
         const pushResult = await pushToGitHub(cleanHtml, "", filePath);
 
         if (pushResult.ok) {
@@ -1277,7 +1255,7 @@ export default function LumenApp() {
     setDeployingId(msgId);
     setDeployResult(null);
 
-    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
     setCycleStatus("generating");
     setCycleLabel(`Сохраняю ${filePath} в GitHub...`);
 
@@ -1385,7 +1363,7 @@ export default function LumenApp() {
       throw new Error("GitHub не настроен. Откройте настройки.");
     }
     if (!previewHtml) throw new Error("Нет кода для сохранения.");
-    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
     const result = await pushToGitHub(previewHtml, currentFileSha, filePath);
     if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
     try {
@@ -1593,7 +1571,7 @@ export default function LumenApp() {
 
                   {/* Mobile tab switcher chat/preview */}
                   <div className="md:hidden flex shrink-0 border-b border-white/[0.06] bg-[#0a0a0f]">
-                    {([\"chat\", \"preview\"] as const).map((tab) => (
+                    {(["chat", "preview"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setMobileTab(tab)}
