@@ -31,3 +31,4 @@ jobs:
         password: ${{ secrets.FTP_PASSWORD }}
         server-dir: www/xn--80afnez1h.xn--p1ai/
         local-dir: ./dist/
+        
