@@ -64,7 +64,6 @@ const ProjectsPage = ({ onGoToChat }: ProjectsPageProps) => {
           subtitle="Свежие продукты"
           image="https://images.unsplash.com/photo-1608686207856-001b95cf60ca?q=80&w=1782&auto=format&fit=crop"
         />
-        {/* Можно добавить другие карточки тут */}
       </div>
     </div>
   );
