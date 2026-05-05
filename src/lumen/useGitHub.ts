@@ -37,7 +37,7 @@ export interface FetchResult {
   message?: string;
 }
 
-export function useGitHub() {
+export function useGitHub(isAdminMode: boolean) {
   const [ghSettings, setGhSettings] = useState<GitHubSettings>(load);
 
   const saveGhSettings = useCallback((s: GitHubSettings) => {
@@ -45,226 +45,165 @@ export function useGitHub() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
   }, []);
 
-  const fetchFromGitHub = useCallback(async (): Promise<FetchResult> => {
-    const { token, repo, filePath } = ghSettings;
-    const path = (filePath || "index.html").trim().replace(/^\//, "");
-    if (!token || !repo) return { ok: false, html: "", sha: "", filePath: path, message: "Нет токена или репозитория" };
-
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=main`;
-    try {
-      const res = await fetch(apiUrl, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({})) as { message?: string };
-        return { ok: false, html: "", sha: "", filePath: path, message: `GitHub HTTP ${res.status}: ${errData.message || "неизвестная ошибка"}` };
-      }
-      const data = await res.json() as { content: string; sha: string };
-      const b64 = data.content.replace(/\s/g, "");
-      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const decoded = new TextDecoder("utf-8").decode(bytes);
-      return { ok: true, html: decoded, sha: data.sha, filePath: path };
-    } catch (e) {
-      return { ok: false, html: "", sha: "", filePath: path, message: String(e) };
+  const privatePush = useCallback(async (
+    html: string,
+    initialSha: string,
+    path: string,
+    repo: string,
+    token: string
+  ): Promise<{ ok: boolean; message: string }> => {
+    if (!token || !repo) {
+      return { ok: false, message: "Токен или репозиторий не настроен" };
     }
-  }, [ghSettings]);
 
-  const deleteFromGitHub = useCallback(async (path: string, sha: string): Promise<{ ok: boolean; message: string }> => {
-    const { token, repo } = ghSettings;
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+    let currentSha = initialSha;
+
+    try {
+      const getRes = await fetch(`${apiUrl}?ref=main`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Cache-Control": "no-cache" },
+      });
+      if (getRes.ok) {
+        currentSha = (await getRes.json()).sha;
+      }
+    } catch (e) { /* Файл не существует, будет создан новый */ }
+
+    const content = btoa(new TextDecoder("utf-8").decode(new TextEncoder().encode(html)));
+
+    const reqBody: { message: string; content: string; branch: string; sha?: string } = {
+      message: `Lumen: правки в ${path}`,
+      content,
+      branch: "main",
+    };
+    if (currentSha) {
+      reqBody.sha = currentSha;
+    }
+
     const res = await fetch(apiUrl, {
-      method: 'DELETE',
+      method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json',
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message: `Lumen: deleting ${path}`, sha, branch: 'main' }),
+      body: JSON.stringify(reqBody),
     });
+
     if (res.ok) {
-      return { ok: true, message: `File ${path} deleted` };
+      return { ok: true, message: `Файл ${path} успешно обновлен` };
+    } else {
+      const err = await res.json().catch(() => ({}));
+      return { ok: false, message: `Ошибка GitHub: ${err.message || res.statusText}` };
     }
-    const data = await res.json().catch(() => ({}));
-    return { ok: false, message: data.message || `Failed to delete ${path}` };
-  }, [ghSettings]);
+  }, []);
+
 
   const pushToGitHub = useCallback(async (
     html: string,
     sha: string,
     filePath: string
   ): Promise<{ ok: boolean; message: string }> => {
+    
+    if (isAdminMode) {
+      // Режим АДМИНИСТРАТОРА: выгрузка в репозиторий платформы
+      return privatePush(html, sha, filePath, ghSettings.engineRepo, ghSettings.engineToken);
+    }
+
+    // Режим ПОЛЬЗОВАТЕЛЯ: выгрузка в репозиторий пользователя
+    // 1. Проверка безопасности: запрет записи в репозиторий администратора
+    if (ghSettings.repo === ghSettings.engineRepo) {
+      return { ok: false, message: "Ошибка: В пользовательском режиме нельзя записывать в репозиторий администратора." };
+    }
+    // 2. Путь всегда "index.html"
+    const targetPath = "index.html";
+    return privatePush(html, sha, targetPath, ghSettings.repo, ghSettings.token);
+
+  }, [ghSettings, isAdminMode, privatePush]);
+
+
+  const fetchFromGitHub = useCallback(async (): Promise<FetchResult> => {
+    // "Загрузить" всегда читает index.html из репозитория ПОЛЬЗОВАТЕЛЯ (muravey)
     const { token, repo } = ghSettings;
-    if (!token) return { ok: false, message: "Введите GitHub Personal Token в настройках" };
-    if (!repo) return { ok: false, message: "Введите путь к репозиторию" };
+    const path = "index.html"; 
 
-    const path = (filePath || "index.html").trim().replace(/^\//, "");
+    if (!token || !repo) {
+      return { ok: false, html: "", sha: "", filePath: path, message: "Нет токена или репозитория" };
+    }
 
-    // Clean slate logic
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=main`;
     try {
-      const listRes = await fetch(`https://api.github.com/repos/${repo}/contents/`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+      const res = await fetch(apiUrl, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Cache-Control": "no-cache" },
       });
-      if (listRes.ok) {
-        const files = await listRes.json() as { name: string; path: string; sha: string; type: string }[];
-        for (const file of files) {
-          if (file.name !== 'README.md' && file.path !== '.github' && file.name !== path) {
-            await deleteFromGitHub(file.path, file.sha);
-          }
-        }
+
+      if (res.status === 404) {
+        return { ok: true, html: "", sha: "", filePath: path, message: "Файл не найден. Начните с чистого листа." };
       }
-    } catch (e) {
-      console.error('Failed to clean repository', e);
-      // Continue even if cleanup fails
-    }
-
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-
-    let actualSha = sha;
-    try {
-      const getRes = await fetch(`${apiUrl}?ref=main`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-      });
-      if (getRes.ok) {
-        const data = await getRes.json() as { sha: string };
-        actualSha = data.sha;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { ok: false, html: "", sha: "", filePath: path, message: `Ошибка GitHub: ${err.message || res.statusText}` };
       }
-    } catch (_e) { /* новый файл */ }
 
-    const utf8Bytes = new TextEncoder().encode(html);
-    const b64Chunks: string[] = [];
-    const chunkSize = 8192;
-    for (let i = 0; i < utf8Bytes.length; i += chunkSize) {
-      b64Chunks.push(String.fromCharCode(...utf8Bytes.slice(i, i + chunkSize)));
+      const data = await res.json();
+      const decoded = atob(data.content);
+      
+      return { ok: true, html: decoded, sha: data.sha, filePath: path };
+    } catch (e: any) {
+      return { ok: false, html: "", sha: "", filePath: path, message: `Сетевая ошибка: ${e.message}` };
     }
-    const content = btoa(b64Chunks.join(""));
+  }, [ghSettings]);
 
-    const doPut = async (shaToUse: string) => {
-      const reqBody: Record<string, string> = {
-        message: `Lumen: правки в ${path}`,
-        content,
-        branch: "main",
-      };
-      if (shaToUse) reqBody.sha = shaToUse;
-      const r = await fetch(apiUrl, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(reqBody),
-      });
-      const d = await r.json().catch(() => ({})) as { message?: string };
-      return { status: r.status, ok: r.ok, data: d };
-    };
-
-    let result = await doPut(actualSha);
-
-    let attempts = 0;
-    while (!result.ok && attempts < 3 && /sha|match|conflict/i.test(result.data.message || "")) {
-      attempts++;
-      try {
-        const refresh = await fetch(`${apiUrl}?ref=main&_=${Date.now()}`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Cache-Control": "no-cache" },
-        });
-        if (refresh.ok) {
-          const fresh = await refresh.json() as { sha: string };
-          actualSha = fresh.sha;
-          result = await doPut(actualSha);
-        } else break;
-      } catch (_e) { break; }
-    }
-
-    if (result.ok) {
-      return { ok: true, message: `Файл ${path} обновлён в GitHub (HTTP ${result.status})` };
-    } else {
-      return { ok: false, message: result.data.message || `Ошибка GitHub: HTTP ${result.status}` };
-    }
-  }, [ghSettings, deleteFromGitHub]);
-
+  
   const syncEngine = useCallback(async (
     onProgress?: (msg: string) => void
   ): Promise<{ ok: boolean; message: string }> => {
-    // Используем engine-специфичные настройки, если они есть, иначе — основные
-    const sourceToken = ghSettings.engineToken || ghSettings.token;
+    const sourceToken = ghSettings.engineToken;
     const sourceRepo = ghSettings.engineRepo;
+    const targetToken = ghSettings.token;
+    const targetRepo = ghSettings.repo;
     const branch = ghSettings.engineBranch || 'main';
 
-    if (!sourceToken) return { ok: false, message: 'Укажите Engine GitHub Token в настройках' };
-    if (!sourceRepo) return { ok: false, message: 'Укажите Engine Repository (например: user/repo)' };
+    if (!sourceToken || !sourceRepo || !targetToken || !targetRepo) {
+      return { ok: false, message: "Не все токены и репозитории настроены для синхронизации" };
+    }
 
-    const headers = {
-      Authorization: `Bearer ${sourceToken}`,
-      Accept: 'application/vnd.github+json',
-    };
+    onProgress?.("Получение списка файлов из репозитория администратора...");
+    const headers = { Authorization: `Bearer ${sourceToken}`, Accept: "application/vnd.github+json" };
 
     try {
-      // Шаг 1: Получаем SHA последнего коммита
-      onProgress?.(`Получение данных ветки ${branch} из ${sourceRepo}...`);
-      const refRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/ref/heads/${branch}`, { headers });
-      if (!refRes.ok) throw new Error(`Ошибка получения ветки: ${refRes.statusText}`);
-      const refData = await refRes.json();
-      const commitSha = refData.object.sha;
-
-      // Шаг 2: Получаем SHA дерева из коммита
-      const commitRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/commits/${commitSha}`, { headers });
-      if (!commitRes.ok) throw new Error(`Ошибка получения коммита: ${commitRes.statusText}`);
-      const commitData = await commitRes.json();
-      const treeSha = commitData.tree.sha;
-
-      // Шаг 3: Получаем рекурсивное дерево файлов
-      onProgress?.('Получение списка файлов из репозитория-источника...');
-      const treeRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/trees/${treeSha}?recursive=1`, { headers });
-      if (!treeRes.ok) throw new Error(`Ошибка получения дерева файлов: ${treeRes.statusText}`);
+      const treeRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/trees/${branch}?recursive=1`, { headers });
+      if (!treeRes.ok) throw new Error(`Не удалось получить дерево файлов: ${treeRes.statusText}`);
+      
       const treeData = await treeRes.json();
+      const files = treeData.tree.filter((item: any) => item.type === 'blob' && !item.path.startsWith('.git'));
 
-      const files = treeData.tree.filter((item: any) => 
-        item.type === 'blob' &&
-        !item.path.startsWith('.git') &&
-        !item.path.includes('node_modules')
-      );
-      
-      onProgress?.(`Найдено ${files.length} файлов для синхронизации.`);
-      
-      // Шаг 4: Скачиваем каждый файл и пушим его в целевой репозиторий
+      onProgress?.(`Найдено ${files.length} файлов. Начало синхронизации...`);
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        onProgress?.(`(${i + 1}/${files.length}) Синхронизация файла: ${file.path}...`);
+        onProgress?.(`(${i + 1}/${files.length}) Загрузка ${file.path}...`);
         
-        // Получаем контент файла в base64
         const blobRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/blobs/${file.sha}`, { headers });
-        if (!blobRes.ok) {
-          onProgress?.(`Пропуск файла ${file.path}: не удалось скачать (${blobRes.statusText})`);
-          continue;
-        }
-        const blobData = await blobRes.json();
+        if (!blobRes.ok) throw new Error(`Не удалось загрузить файл ${file.path}`);
         
-        // Декодируем контент из base64
+        const blobData = await blobRes.json();
         const decodedContent = atob(blobData.content);
 
-        // Используем существующую функцию pushToGitHub для записи файла в основной репозиторий
-        // Передаем пустой SHA, так как pushToGitHub сам определит нужный SHA для коммита
-        const pushResult = await pushToGitHub(decodedContent, '', file.path);
-        
+        onProgress?.(`(${i + 1}/${files.length}) Сохранение ${file.path} в репозиторий пользователя...`);
+        const pushResult = await privatePush(decodedContent, "", file.path, targetRepo, targetToken);
+
         if (!pushResult.ok) {
-          // Если возникла ошибка, можно ее обработать или прервать процесс
-          onProgress?.(`Ошибка при записи файла ${file.path}: ${pushResult.message}`);
-          // Можно раскомментировать, чтобы остановить при первой ошибке
-          // throw new Error(`Failed to push file ${file.path}: ${pushResult.message}`);
+          throw new Error(`Не удалось сохранить ${file.path}: ${pushResult.message}`);
         }
       }
-
-      const message = `Синхронизация успешно завершена. Обработано ${files.length} файлов.`;
-      onProgress?.(message);
-      return { ok: true, message };
-
+      const finalMessage = `Синхронизация успешно завершена. ${files.length} файлов обновлено.`;
+      onProgress?.(finalMessage);
+      return { ok: true, message: finalMessage };
     } catch (e: any) {
-      const message = `Ошибка синхронизации: ${e.message || String(e)}`;
-      onProgress?.(message);
-      console.error(e);
-      return { ok: false, message };
+      onProgress?.(`Ошибка синхронизации: ${e.message}`);
+      return { ok: false, message: e.message };
     }
-  }, [ghSettings, pushToGitHub]);
+  }, [ghSettings, privatePush]);
 
 
   return { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine };
