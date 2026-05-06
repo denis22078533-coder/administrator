@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 
-const API_URL = "https://югазин.рф/api"; // Адрес нашего бэкенда
+const API_URL = "https://югазин.рф/api";
 const TOKEN_KEY = "muravey_auth_token";
 const TESTER_MODE_KEY = "muravey_tester_mode";
 
-// Типизация для данных пользователя
 export interface User {
   id: number;
   email: string;
@@ -13,135 +12,65 @@ export interface User {
 }
 
 export function useApiAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const defaultUser: User = {
+    id: 1,
+    email: "dev@muravey.com",
+    tokens_balance: 9999,
+    is_admin: true,
+  };
+
+  const [user, setUser] = useState<User | null>(defaultUser);
+  const [token, setToken] = useState<string | null>("fake-dev-token");
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  
-  // Состояние "Режим Тестировщика" для админов
-  const [isTester, setIsTester] = useState<boolean>(() => {
-      const stored = localStorage.getItem(TESTER_MODE_KEY);
-      return stored === "1";
-  });
-
-  // Функция для проверки токена и получения данных пользователя
-  const validateTokenAndFetchUser = useCallback(async (authToken: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/me`, {
-        headers: { 'Authorization': `Bearer ${authToken}` },
-      });
-      if (response.status === 401) {
-        // Токен недействителен
-        localStorage.removeItem(TOKEN_KEY);
-        setToken(null);
-        setUser(null);
-        return;
-      }
-      if (!response.ok) throw new Error("Ошибка получения данных пользователя");
-      
-      const data = await response.json();
-      setUser(data.user);
-
-    } catch (e: any) {
-      console.error(e);
-      // Если не удалось проверить, выходим из системы
-      localStorage.removeItem(TOKEN_KEY);
-      setToken(null);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // При загрузке хука, если есть токен, проверяем его
-  useEffect(() => {
-    if (token) {
-      validateTokenAndFetchUser(token);
-    }
-  }, [token, validateTokenAndFetchUser]);
+  const [isTester, setIsTester] = useState<boolean>(true);
 
   const login = useCallback(async (email, password) => {
-    setIsLoading(true);
-    setAuthError(null);
-    try {
-      const response = await fetch(`${API_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Ошибка входа");
-
-      localStorage.setItem(TOKEN_KEY, data.token);
-      setToken(data.token);
-      setUser(data.user);
-      return true;
-    } catch (e: any) {
-      setAuthError(e.message);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
+    console.log("Login disabled");
+    return true;
   }, []);
 
   const register = useCallback(async (email, password) => {
-    setIsLoading(true);
-    setAuthError(null);
-    try {
-      const response = await fetch(`${API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Ошибка регистрации");
-      return login(email, password);
-    } catch (e: any) {
-      setAuthError(e.message);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [login]);
+    console.log("Register disabled");
+    return true;
+  }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(TESTER_MODE_KEY);
-    setToken(null);
-    setUser(null);
-    setIsTester(false);
+    console.log("Logout disabled");
   }, []);
-  
+
   const clearError = useCallback(() => {
-      setAuthError(null);
+    setAuthError(null);
   }, []);
 
   const resetBalance = useCallback(async () => {
-      if (!token) return;
-      try {
-          const response = await fetch(`${API_URL}/balance/reset`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` },
-          });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.message || "Ошибка сброса баланса");
-          setUser(data.user); // Обновляем данные пользователя
-      } catch (e: any) {
-          console.error("Balance reset error:", e.message);
-      }
-  }, [token]);
+    console.log("Balance reset disabled");
+  }, []);
 
   const toggleTesterMode = useCallback(() => {
-    if (user && user.is_admin) {
-        const newTesterState = !isTester;
-        setIsTester(newTesterState);
-        localStorage.setItem(TESTER_MODE_KEY, newTesterState ? "1" : "0");
-    }
-  }, [user, isTester]);
+    setIsTester(prev => !prev);
+  }, []);
 
-  // Вычисляемое свойство для отображения баланса
+  const spendBalance = useCallback(async (amount: number) => {
+    console.log(`Spending ${amount} tokens (disabled)`);
+    return;
+  }, []);
+
   const displayBalance = user ? (user.is_admin && !isTester ? "∞" : user.tokens_balance) : 0;
 
-  return { user, token, isLoading, authError, login, register, logout, clearError, isTester, toggleTesterMode, resetBalance, displayBalance };
+  return {
+    user,
+    token,
+    isLoading,
+    authError,
+    login,
+    register,
+    logout,
+    clearError,
+    isTester,
+    toggleTesterMode,
+    resetBalance,
+    displayBalance,
+    spendBalance,
+  };
 }
