@@ -19,7 +19,7 @@ from database import (
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "https://югазин.рф"}})
 bcrypt = Bcrypt(app)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_super_secret_key_change_it_please')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'c82e0a273c52a7b6b0604b2c8c7c25c1d3c0b1a0e8c9c7b9e0f3e1d2c3b4a5f6')
 
 RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', 'your-rapidapi-key-here')
 RAPIDAPI_HOST = 'suno-ai-music-generator.p.rapidapi.com'
