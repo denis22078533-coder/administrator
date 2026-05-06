@@ -14,7 +14,7 @@ import CoreDashboard from "./CoreDashboard";
 import { useGitHub } from "./useGitHub";
 import { MusicService } from "../lib/MusicService";
 import MusicPlayer from "./MusicPlayer";
-import { useLumenAuth } from "./useLumenAuth"; // <<<< CORRECT AUTH
+import { useLumenAuth } from "./useLumenAuth";
 import {
   CREATE_SYSTEM_PROMPT,
   EDIT_SYSTEM_PROMPT_FULL,
@@ -56,7 +56,6 @@ const DEFAULT_SETTINGS: Settings = {
 
 let msgCounter = 0;
 
-// Simple login component, self-contained
 const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean}) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -102,12 +101,22 @@ const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean}) => {
 
 
 export default function LumenApp() {
-  const { loggedIn, login, adminLogin, adminMode, adminLogout } = useLumenAuth();
+  const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
   
   const handleLumenLogin = (password: string): boolean => {
-    return login(password) || adminLogin(password);
+    // Try both login functions
+    const regularLoginSuccess = login(password);
+    const adminLoginSuccess = adminLogin(password);
+    return regularLoginSuccess || adminLoginSuccess;
   }
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("lumen_auth");
+    localStorage.removeItem("lumen_admin_auth");
+    // Force a reload to ensure all state is cleared and user is redirected to login
+    window.location.reload();
+  }, []);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -281,7 +290,7 @@ export default function LumenApp() {
         await Promise.all(assetPromises);
         console.log("[ZIP] Assets найдено:", Object.keys(zipAssets));
 
-        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, (match, href) => {
+        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
@@ -293,14 +302,14 @@ export default function LumenApp() {
           return match;
         });
 
-        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=["']([^"']+)["']([^>]*)><\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
             : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
           if (key && zipAssets[key]) {
             console.log("[ZIP] Инлайн JS:", key);
-            const attrs = (pre + post).replace(/\s*src=["'][^"']*["']/gi, "").replace(/\s*type=["']module["']/gi, "");
+            const attrs = (pre + post).replace(/\s*src=['"][^'"]*['"]/gi, "").replace(/\s*type=['"]module['"]/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
           return match;
@@ -423,7 +432,7 @@ ${content.slice(0, 6000)}
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     if (/<base\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\s[^>]*href=["'][^"']*["'][^>]*>/i, `<base href="${base}">`);
+      return html.replace(/<base\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href="${base}">`);
     }
     if (/<head>/i.test(html)) {
       return html.replace(/<head>/i, `<head>\n  <base href="${base}">`);
@@ -613,7 +622,6 @@ ${content.slice(0, 6000)}
     setCycleStatus("generating");
     setCycleLabel("Создаю песню...");
     try {
-      // await spendBalance(10); // <<-- REMOVED
       const tracks = await MusicService.generate(text);
       if (!tracks || tracks.length === 0) {
         throw new Error("Не удалось создать песню. Попробуйте другой запрос.");
@@ -632,7 +640,7 @@ ${content.slice(0, 6000)}
       const errText = err instanceof Error ? err.message : "Неизвестная ошибка";
       setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
     }
-  }, []); // <<-- spendBalance removed
+  }, []);
 
   const readFileFromGitHub = async (path: string, token: string, repo: string, branch: string): Promise<{ content: string; error?: never } | { content?: never; error: string }> => {
     if (!repo || !token) return { error: "Не настроен Engine-репозиторий или токен. Откройте Настройки → Engine GitHub." };
@@ -955,8 +963,6 @@ ${PROJECT_STRUCTURE}`;
   const handleSend = useCallback(async (text: string, mode: ChatMode = "site") => {
     abortRef.current = false;
     
-    // <<<< AUTH/PAYMENT BLOCK REMOVED >>>>
-
     const userMsg: Message = { id: ++msgCounter, role: "user", text };
     setMessages(prev => [...prev, userMsg]);
     setDeployResult(null);
@@ -1284,7 +1290,7 @@ ${PROJECT_STRUCTURE}`;
               selfEditActive={selfEditMode}
               isAdmin={adminMode}
               onSettings={() => setSettingsOpen(true)}
-              onLogout={adminLogout}
+              onLogout={handleLogout}
               balance={"Безлимит"}
             />
           )}
@@ -1492,7 +1498,7 @@ ${PROJECT_STRUCTURE}`;
                       </div>
                       <span className="text-white/20 ml-auto">→</span>
                     </button>
-                    <button onClick={adminLogout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
+                    <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
                         <span className="text-xl">🚪</span>
                         <div>
                           <div className="text-red-400 text-sm font-medium">Выйти</div>
