@@ -3,52 +3,41 @@ import { motion, AnimatePresence } from "framer-motion";
 import Icon from "@/components/ui/icon";
 
 interface Props {
-  login: (email, password) => Promise<boolean>;
-  register: (email, password) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string) => Promise<boolean>; // Оставим на случай, если понадобится в будущем
   isLoading: boolean;
   error: string | null;
 }
 
-export default function LumenLoginPage({ login, register, isLoading, error: authError }: Props) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
+// На время разработки вход осуществляется по единому паролю
+const DEV_EMAIL = "dev@muravey.com";
+
+export default function LumenLoginPage({ login, isLoading, error: authError }: Props) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [internalError, setInternalError] = useState<string | null>(null);
 
-  const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    emailInputRef.current?.focus();
-  }, [mode]);
+    passwordInputRef.current?.focus();
+  }, []);
   
   useEffect(() => {
       setInternalError(authError);
   }, [authError]);
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim() || isLoading) return;
-
-    if (mode === "login") {
-      await login(email, password);
-    } else {
-      await register(email, password);
-    }
+    if (!password.trim() || isLoading) return;
+    await login(DEV_EMAIL, password);
   };
 
   const clearError = () => setInternalError(null);
 
-  const toggleMode = () => {
-    setMode(mode === "login" ? "register" : "login");
-    clearError();
-    setEmail("");
-    setPassword("");
-  };
-
   return (
     <div className="h-screen bg-[#07070c] flex items-center justify-center overflow-hidden relative">
+      {/* Фоновые элементы... */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div animate={{ scale: [1, 1.05, 1], opacity: [0.15, 0.22, 0.15] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#9333ea]/25 blur-[120px]" />
         <motion.div animate={{ scale: [1.05, 1, 1.05], opacity: [0.1, 0.18, 0.1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }} className="absolute top-1/3 left-1/3 w-[400px] h-[400px] rounded-full bg-indigo-600/15 blur-[100px]" />
@@ -62,30 +51,21 @@ export default function LumenLoginPage({ login, register, isLoading, error: auth
              <span className="text-2xl">🐜</span>
            </motion.div>
            <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22, duration: 0.35 }} className="text-white text-2xl font-semibold tracking-tight">Муравей</motion.h1>
-           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 0.35 }} className="text-white/30 text-sm mt-1 text-center">AI-разработчик сайтов и приложений</motion.p>
+           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 0.35 }} className="text-white/30 text-sm mt-1 text-center">Вход для разработчиков</motion.p>
         </div>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.4, ease: "easeOut" }} className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 backdrop-blur-sm">
-          <h2 className="text-white/80 text-sm font-medium mb-5 text-center">{mode === 'login' ? 'Вход в аккаунт' : 'Создание аккаунта'}</h2>
+          <h2 className="text-white/80 text-sm font-medium mb-5 text-center">Вход на сайт</h2>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <input
-              ref={emailInputRef}
-              type="email"
-              value={email}
-              onChange={e => { setEmail(e.target.value); clearError(); }}
-              placeholder="Email"
-              autoComplete="email"
-              className={`w-full h-11 bg-white/[0.05] border rounded-xl px-4 text-white text-sm placeholder:text-white/20 outline-none transition-all ${internalError ? "border-red-500/50" : "border-white/[0.08] focus:border-[#9333ea]/50"}`}
-            />
-
             <div className="relative">
               <input
+                ref={passwordInputRef}
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={e => { setPassword(e.target.value); clearError(); }}
-                placeholder="Пароль"
-                autoComplete={mode === 'login' ? "current-password" : "new-password"}
+                placeholder="Пароль для входа"
+                autoComplete="current-password"
                 className={`w-full h-11 bg-white/[0.05] border rounded-xl px-4 pr-11 text-white text-sm placeholder:text-white/20 outline-none transition-all ${internalError ? "border-red-500/50" : "border-white/[0.08] focus:border-[#9333ea]/50"}`}
               />
               <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors">
@@ -95,29 +75,22 @@ export default function LumenLoginPage({ login, register, isLoading, error: auth
 
             <AnimatePresence>
               {internalError && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto"}} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-red-400 text-xs">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto"}} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-red-400 text-xs pt-1">
                   <Icon name="AlertCircle" size={13} />
                   {internalError}
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <motion.button type="submit" disabled={!email.trim() || !password.trim() || isLoading} whileTap={{ scale: 0.98 }} className="h-11 mt-2 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#ef4444] hover:opacity-90 disabled:opacity-40 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-opacity">
+            <motion.button type="submit" disabled={!password.trim() || isLoading} whileTap={{ scale: 0.98 }} className="h-11 mt-2 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#ef4444] hover:opacity-90 disabled:opacity-40 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-opacity">
               {isLoading ? (
                 <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
               ) : (
-                <Icon name={mode === 'login' ? "LogIn" : "UserPlus"} size={16} />
+                <Icon name="LogIn" size={16} />
               )}
-              {isLoading ? 'Проверка...' : (mode === 'login' ? 'Войти' : 'Создать аккаунт')}
+              {isLoading ? 'Проверка...' : 'Войти'}
             </motion.button>
           </form>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="text-center text-sm text-white/30 mt-6">
-          {mode === 'login' ? "Нет аккаунта?" : "Уже есть аккаунт?"}
-          <button onClick={toggleMode} className="font-semibold text-[#f59e0b]/80 hover:text-[#f59e0b] transition-colors ml-2">
-            {mode === 'login' ? "Создать" : "Войти"}
-          </button>
         </motion.div>
       </motion.div>
     </div>
