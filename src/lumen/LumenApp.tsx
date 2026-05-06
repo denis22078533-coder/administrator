@@ -1502,14 +1502,16 @@ ${PROJECT_STRUCTURE}`;
                           </div>
                         </div>
                       </div>
-                    <button onClick={() => setSettingsOpen(true)} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
-                      <span className="text-xl">⚙️</span>
-                      <div>
-                        <div className="text-white/80 text-sm font-medium">Настройки</div>
-                        <div className="text-white/30 text-xs">API ключи, GitHub, модель</div>
-                      </div>
-                      <span className="text-white/20 ml-auto">→</span>
-                    </button>
+                    {adminMode && (
+                      <button onClick={() => setSettingsOpen(true)} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
+                        <span className="text-xl">⚙️</span>
+                        <div>
+                          <div className="text-white/80 text-sm font-medium">Настройки</div>
+                          <div className="text-white/30 text-xs">API ключи, GitHub, модель</div>
+                        </div>
+                        <span className="text-white/20 ml-auto">→</span>
+                      </button>
+                    )}
                     <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
                         <span className="text-xl">🚪</span>
                         <div>
