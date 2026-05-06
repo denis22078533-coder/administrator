@@ -105,7 +105,6 @@ export default function LumenApp() {
   const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
   
   const handleLumenLogin = (password: string): boolean => {
-    // Try both login functions
     const regularLoginSuccess = login(password);
     const adminLoginSuccess = adminLogin(password);
     return regularLoginSuccess || adminLoginSuccess;
@@ -114,7 +113,6 @@ export default function LumenApp() {
   const handleLogout = useCallback(() => {
     localStorage.removeItem("lumen_auth");
     localStorage.removeItem("lumen_admin_auth");
-    // Force a reload to ensure all state is cleared and user is redirected to login
     window.location.reload();
   }, []);
 
@@ -147,17 +145,29 @@ export default function LumenApp() {
   const [activeTab, setActiveTab] = useState<Tab>("home");
 
   const [selfEditMode, setSelfEditMode] = useState<boolean>(() => {
-    try { return localStorage.getItem("lumen_self_edit") === "1"; } catch { return false; }
+    try { 
+      const stored = localStorage.getItem("lumen_self_edit");
+      return stored === "1";
+    } catch { return false; }
   });
+
+  useEffect(() => {
+    if (!adminMode) {
+      setSelfEditMode(false);
+      try { localStorage.setItem("lumen_self_edit", "0"); } catch {}
+    }
+  }, [adminMode]);
 
   const [publicAiEnabled, setPublicAiEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem("lumen_public_ai") === "1"; } catch { return false; }
   });
   const handlePublicAiToggle = (v: boolean) => {
+    if (!adminMode) return;
     setPublicAiEnabled(v);
     try { localStorage.setItem("lumen_public_ai", v ? "1" : "0"); } catch (_e) { /* ignore */ }
   };
   const handleSelfEditToggle = (v: boolean) => {
+    if (!adminMode) return;
     setSelfEditMode(v);
     try { localStorage.setItem("lumen_self_edit", v ? "1" : "0"); } catch { /* ignore */ }
     setMessages(prev => [...prev, {
@@ -170,6 +180,7 @@ export default function LumenApp() {
 
   const [syncingEngine, setSyncingEngine] = useState(false);
   const handleSyncEngine = useCallback(async () => {
+    if (!adminMode) return;
     setSyncingEngine(true);
     setCycleStatus("reading");
     setCycleLabel("Синхронизирую Engine...");
@@ -185,7 +196,7 @@ export default function LumenApp() {
     } finally {
       setSyncingEngine(false);
     }
-  }, [syncEngine]);
+  }, [syncEngine, adminMode]);
 
   const savePreviewHtml = (html: string | null) => {
     setPreviewHtml(prev => {
@@ -826,6 +837,7 @@ ${PROJECT_STRUCTURE}`;
   };
 
   const handleSelfEditChat = useCallback(async (text: string) => {
+    if (!adminMode) return;
     if (!settings.apiKey) { setSettingsOpen(true); return; }
     const engineToken = ghSettings.engineToken || ghSettings.token;
     const engineRepo = ghSettings.engineRepo;
@@ -954,7 +966,7 @@ ${PROJECT_STRUCTURE}`;
       setCycleStatus("error"); setCycleLabel("");
       setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка Self-Edit: ${err instanceof Error ? err.message : String(err)}` }]);
     }
-  }, [settings, ghSettings, messages, selfEditMode]);
+  }, [settings, ghSettings, messages, selfEditMode, adminMode]);
 
   const handleNewMessage = (message: Message) => {
     setMessages(prev => [...prev, message]);
@@ -974,7 +986,7 @@ ${PROJECT_STRUCTURE}`;
     }
 
     if (mode === "chat") {
-      if (selfEditMode && ghSettings.engineRepo) {
+      if (selfEditMode && adminMode && ghSettings.engineRepo) {
         await handleSelfEditChat(text);
         return;
       }
@@ -1130,7 +1142,7 @@ ${PROJECT_STRUCTURE}`;
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
       }
     }
-  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, handleSendMusic]);
+  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, handleSendMusic, adminMode]);
 
   const handleSelectTemplate = useCallback((prompt: string) => {
     setActiveTab("chat");
@@ -1287,7 +1299,7 @@ ${PROJECT_STRUCTURE}`;
             <LumenTopBar
               status={topStatus}
               cycleLabel={cycleLabel}
-              selfEditActive={selfEditMode}
+              selfEditActive={selfEditMode && adminMode}
               isAdmin={adminMode}
               onSettings={() => setSettingsOpen(true)}
               onLogout={handleLogout}
@@ -1331,7 +1343,7 @@ ${PROJECT_STRUCTURE}`;
                 </motion.div>
               )}
 
-              {activeTab === "core" && (
+              {adminMode && activeTab === "core" && (
                  <motion.div
                   key="core"
                   initial={{ opacity: 0, y: 16 }}
@@ -1512,7 +1524,7 @@ ${PROJECT_STRUCTURE}`;
             </AnimatePresence>
           </div>
 
-          <BottomNav active={activeTab} onChange={setActiveTab} />
+          <BottomNav active={activeTab} onChange={setActiveTab} isAdmin={adminMode} />
           
           <SettingsDrawer
             open={settingsOpen}
