@@ -5,7 +5,6 @@ import Icon from "@/components/ui/icon";
 import LumenTopBar from "./LumenTopBar";
 import LivePreview from "./LivePreview";
 import ChatPanel, { ChatMode } from "./ChatPanel";
-import SettingsDrawer from "./SettingsDrawer";
 import HomePage from "./HomePage";
 import ProjectsPage from "./ProjectsPage";
 import BottomNav, { Tab } from "./BottomNav";
@@ -102,7 +101,7 @@ const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean}) => {
 
 export default function LumenApp() {
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine } = useGitHub();
+  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub();
   
   const handleLumenLogin = (password: string): boolean => {
     const regularLoginSuccess = login(password);
@@ -115,8 +114,6 @@ export default function LumenApp() {
     localStorage.removeItem("lumen_admin_auth");
     window.location.reload();
   }, []);
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const liveUrl = (() => {
     if (ghSettings.siteUrl?.trim()) {
@@ -161,42 +158,6 @@ export default function LumenApp() {
   const [publicAiEnabled, setPublicAiEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem("lumen_public_ai") === "1"; } catch { return false; }
   });
-  const handlePublicAiToggle = (v: boolean) => {
-    if (!adminMode) return;
-    setPublicAiEnabled(v);
-    try { localStorage.setItem("lumen_public_ai", v ? "1" : "0"); } catch (_e) { /* ignore */ }
-  };
-  const handleSelfEditToggle = (v: boolean) => {
-    if (!adminMode) return;
-    setSelfEditMode(v);
-    try { localStorage.setItem("lumen_self_edit", v ? "1" : "0"); } catch { /* ignore */ }
-    setMessages(prev => [...prev, {
-      id: ++msgCounter, role: "assistant",
-      text: v
-        ? "Self-Edit Mode включён. Теперь я могу читать и редактировать файлы платформы через Engine GitHub. Скажи что нужно изменить."
-        : "Self-Edit Mode выключен. Работаю в обычном режиме.",
-    }]);
-  };
-
-  const [syncingEngine, setSyncingEngine] = useState(false);
-  const handleSyncEngine = useCallback(async () => {
-    if (!adminMode) return;
-    setSyncingEngine(true);
-    setCycleStatus("reading");
-    setCycleLabel("Синхронизирую Engine...");
-    try {
-      const result = await syncEngine((msg) => setCycleLabel(msg));
-      setCycleStatus(result.ok ? "done" : "error");
-      setCycleLabel("");
-      setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: result.message }]);
-    } catch (err) {
-      setCycleStatus("error");
-      setCycleLabel("");
-      setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка Sync Engine: ${err instanceof Error ? err.message : String(err)}` }]);
-    } finally {
-      setSyncingEngine(false);
-    }
-  }, [syncEngine, adminMode]);
 
   const savePreviewHtml = (html: string | null) => {
     setPreviewHtml(prev => {
@@ -256,7 +217,6 @@ export default function LumenApp() {
       zip.forEach((relativePath: string, zipEntry: { dir: boolean }) => {
         if (!zipEntry.dir) allPaths.push(relativePath);
       });
-      console.log("[ZIP] Все файлы в архиве:", allPaths);
 
       let foundHtml = "";
       let foundPath = "";
@@ -273,7 +233,6 @@ export default function LumenApp() {
 
       if (!foundHtml) {
         const htmlFiles = allPaths.filter(p => p.endsWith("index.html"));
-        console.log("[ZIP] Найдены index.html:", htmlFiles);
         const pick = htmlFiles.find(p => p.includes("dist/"))
           || htmlFiles.find(p => p.includes("build/"))
           || htmlFiles[0];
@@ -282,8 +241,6 @@ export default function LumenApp() {
           foundHtml = await zip.file(pick)!.async("string");
         }
       }
-
-      console.log("[ZIP] Выбран файл:", foundPath, "| длина HTML:", foundHtml.length);
 
       if (foundHtml) {
         setCycleLabel("Встраиваю стили и скрипты...");
@@ -299,7 +256,6 @@ export default function LumenApp() {
           }
         });
         await Promise.all(assetPromises);
-        console.log("[ZIP] Assets найдено:", Object.keys(zipAssets));
 
         let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
@@ -307,7 +263,6 @@ export default function LumenApp() {
             : zipAssets[normalized] !== undefined ? normalized
             : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
           if (key && zipAssets[key]) {
-            console.log("[ZIP] Инлайн CSS:", key);
             return `<style>${zipAssets[key]}</style>`;
           }
           return match;
@@ -319,7 +274,6 @@ export default function LumenApp() {
             : zipAssets[normalized] !== undefined ? normalized
             : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\//, "")));
           if (key && zipAssets[key]) {
-            console.log("[ZIP] Инлайн JS:", key);
             const attrs = (pre + post).replace(/\s*src=['"][^'"]*['"]/gi, "").replace(/\s*type=['"]module['"]/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
@@ -654,7 +608,7 @@ ${content.slice(0, 6000)}
   }, []);
 
   const readFileFromGitHub = async (path: string, token: string, repo: string, branch: string): Promise<{ content: string; error?: never } | { content?: never; error: string }> => {
-    if (!repo || !token) return { error: "Не настроен Engine-репозиторий или токен. Откройте Настройки → Engine GitHub." };
+    if (!repo || !token) return { error: "Не настроен Engine-репозиторий или токен." };
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${encodeURIComponent(branch)}`;
     let res: Response;
     try {
@@ -662,7 +616,7 @@ ${content.slice(0, 6000)}
     } catch (e) {
       return { error: `Сетевая ошибка при чтении ${path}: ${String(e)}` };
     }
-    if (res.status === 401) return { error: `Ошибка авторизации (401). Проверьте токен GitHub в настройках Engine.` };
+    if (res.status === 401) return { error: `Ошибка авторизации (401). Проверьте токен GitHub.` };
     if (res.status === 403) return { error: `Нет доступа (403) к файлу \`${path}\`. Проверьте права токена.` };
     if (res.status === 404) return { error: `Файл не найден (404): \`${path}\` в репозитории ${repo}` };
     if (!res.ok) return { error: `GitHub API вернул HTTP ${res.status} для \`${path}\`` };
@@ -683,7 +637,14 @@ ${content.slice(0, 6000)}
   };
 
   const handleSendChat = useCallback(async (text: string) => {
-    if (!settings.apiKey) { setSettingsOpen(true); return; }
+    if (!settings.apiKey) {
+        setMessages(prev => [...prev, {
+            id: ++msgCounter, 
+            role: "assistant", 
+            text: "API-ключ не найден. Администратору необходимо перейти на страницу /system-admin и ввести ключ."
+        }]);
+        return;
+    }
     setCycleStatus("generating");
     setCycleLabel("Думаю...");
     const token = ghSettings.token;
@@ -798,7 +759,10 @@ ${PROJECT_STRUCTURE}`;
   const [pendingSql, setPendingSql] = useState<{ sql: string; explanation: string } | null>(null);
 
   const handleSqlRequest = useCallback(async (text: string) => {
-    if (!settings.apiKey) { setSettingsOpen(true); return; }
+    if (!settings.apiKey) {
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "API-ключ не найден. Администратору необходимо перейти на страницу /system-admin и ввести ключ." }]);
+        return;
+    }
     setCycleStatus("generating");
     setCycleLabel("Генерирую SQL...");
     try {
@@ -838,7 +802,10 @@ ${PROJECT_STRUCTURE}`;
 
   const handleSelfEditChat = useCallback(async (text: string) => {
     if (!adminMode) return;
-    if (!settings.apiKey) { setSettingsOpen(true); return; }
+    if (!settings.apiKey) {
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "API-ключ не найден. Администратору необходимо перейти на страницу /system-admin и ввести ключ." }]);
+        return;
+    }
     const engineToken = ghSettings.engineToken || ghSettings.token;
     const engineRepo = ghSettings.engineRepo;
     const engineBranch = ghSettings.engineBranch || "main";
@@ -846,7 +813,7 @@ ${PROJECT_STRUCTURE}`;
     if (!engineToken || !engineRepo) {
       setMessages(prev => [...prev, {
         id: ++msgCounter, role: "assistant",
-        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\n\nОткройте **Настройки → Self-Edit / Engine GitHub** и заполните:\n- Engine Token (GitHub Personal Access Token)\n- Engine Repository (например: `your-user/your-repo`)\n- Engine Branch (обычно `main`)",
+        text: "⚠️ Self-Edit Mode: не настроен Engine-репозиторий или токен.\n\nОткройте /system-admin и заполните данные для Engine.",
       }]);
       return;
     }
@@ -1004,7 +971,10 @@ ${PROJECT_STRUCTURE}`;
       return;
     }
 
-    if (!settings.apiKey) { setSettingsOpen(true); return; }
+    if (!settings.apiKey) {
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "API-ключ не найден. Администратору необходимо перейти на страницу /system-admin и ввести ключ." }]);
+        return;
+    }
 
     try {
       let currentHtml = "";
@@ -1152,7 +1122,10 @@ ${PROJECT_STRUCTURE}`;
   }, [handleSend]);
 
   const handleApply = useCallback(async (msgId: number, html: string) => {
-    if (!ghSettings.token) { setSettingsOpen(true); return; }
+    if (!ghSettings.token) {
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "GitHub-репозиторий не настроен. Администратору необходимо перейти на страницу /system-admin и указать данные." }]);
+        return;
+    }
     setDeployingId(msgId);
     setDeployResult(null);
 
@@ -1186,7 +1159,10 @@ ${PROJECT_STRUCTURE}`;
   };
 
   const handleLoadFromGitHub = useCallback(async () => {
-    if (!ghSettings.token || !ghSettings.repo) { setSettingsOpen(true); return; }
+    if (!ghSettings.token || !ghSettings.repo) {
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "GitHub-репозиторий не настроен. Администратору необходимо перейти на страницу /system-admin и указать данные." }]);
+        return;
+    }
     setLoadingFromGitHub(true);
     const fetched = await fetchFromGitHub();
     setLoadingFromGitHub(false);
@@ -1255,8 +1231,8 @@ ${PROJECT_STRUCTURE}`;
 
   const handleApplyToGitHub = useCallback(async () => {
     if (!ghSettings.token || !ghSettings.repo) {
-      setSettingsOpen(true);
-      throw new Error("GitHub не настроен. Откройте настройки.");
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "GitHub-репозиторий не настроен. Администратору необходимо перейти на страницу /system-admin и указать данные." }]);
+        throw new Error("GitHub не настроен.");
     }
     if (!previewHtml) throw new Error("Нет кода для сохранения.");
     const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
@@ -1267,11 +1243,6 @@ ${PROJECT_STRUCTURE}`;
       if (fresh.ok) { setCurrentFileSha(fresh.sha); setCurrentFilePath(fresh.filePath); }
     } catch (_e) { /* не критично */ }
   }, [ghSettings, previewHtml, currentFilePath, currentFileSha, pushToGitHub, fetchFromGitHub]);
-
-  const handleSaveSettings = (s: Settings) => {
-    setSettings(s);
-    localStorage.setItem("lumen_settings", JSON.stringify(s));
-  };
 
   const topStatus: "idle" | "generating" | "done" | "error" =
     cycleStatus === "reading" ? "generating" : cycleStatus;
@@ -1301,7 +1272,7 @@ ${PROJECT_STRUCTURE}`;
               cycleLabel={cycleLabel}
               selfEditActive={selfEditMode && adminMode}
               isAdmin={adminMode}
-              onSettings={() => setSettingsOpen(true)}
+              onSettings={() => window.location.href = '/system-admin'} // Navigate to admin page
               onLogout={handleLogout}
               balance={"Безлимит"}
             />
@@ -1352,7 +1323,7 @@ ${PROJECT_STRUCTURE}`;
                   transition={{ duration: 0.25 }}
                   className="absolute inset-0"
                 >
-                  <CoreDashboard onOpenSettings={() => setSettingsOpen(true)} />
+                  <CoreDashboard onOpenSettings={() => window.location.href = '/system-admin'} />
                 </motion.div>
               )}
 
@@ -1436,7 +1407,13 @@ ${PROJECT_STRUCTURE}`;
                           localFileName={fullCodeContext?.fileName}
                           pendingSql={pendingSql}
                           hasGitHub={!!(ghSettings.token && ghSettings.repo)}
-                          onOpenSettings={() => setSettingsOpen(true)}
+                          onOpenSettings={() => { 
+                              setMessages(prev => [...prev, {
+                                  id: ++msgCounter, 
+                                  role: "assistant", 
+                                  text: "Для доступа к настройкам перейдите на страницу /system-admin"
+                              }]);
+                           } }
                         />
                       )}
                     </div>
@@ -1503,11 +1480,11 @@ ${PROJECT_STRUCTURE}`;
                         </div>
                       </div>
                     {adminMode && (
-                      <button onClick={() => setSettingsOpen(true)} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
+                      <button onClick={() => window.location.href = '/system-admin'} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
                         <span className="text-xl">⚙️</span>
                         <div>
-                          <div className="text-white/80 text-sm font-medium">Настройки</div>
-                          <div className="text-white/30 text-xs">API ключи, GitHub, модель</div>
+                          <div className="text-white/80 text-sm font-medium">Панель Администратора</div>
+                          <div className="text-white/30 text-xs">Управление системой</div>
                         </div>
                         <span className="text-white/20 ml-auto">→</span>
                       </button>
@@ -1527,27 +1504,6 @@ ${PROJECT_STRUCTURE}`;
           </div>
 
           <BottomNav active={activeTab} onChange={setActiveTab} isAdmin={adminMode} />
-          
-          <SettingsDrawer
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            settings={settings}
-            onSave={handleSaveSettings}
-            ghSettings={ghSettings}
-            onSaveGh={saveGhSettings}
-            selfEditMode={selfEditMode}
-            onSelfEditToggle={handleSelfEditToggle}
-            publicAiEnabled={publicAiEnabled}
-            onPublicAiToggle={handlePublicAiToggle}
-            onSyncEngine={handleSyncEngine}
-            syncingEngine={syncingEngine}
-            onLoadZip={() => zipInputRef.current?.click()}
-            convertingZip={convertingZip}
-            isAdmin={adminMode}
-            isTesterMode={false}
-            onToggleTesterMode={() => {}}
-            onResetBalance={() => {}}
-          />
 
         </motion.div>
       )}

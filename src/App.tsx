@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import Index from "./pages/Index";
 import LumenApp from "./lumen/LumenApp";
+import SystemAdminPage from "./SystemAdminPage"; // Import the new admin page
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LumenApp />} />
+            <Route path="/system-admin" element={<SystemAdminPage />} /> // Add the new admin route
             <Route path="/motofeed" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -5,7 +5,7 @@ import { GitHubSettings } from "./useGitHub";
 import AITab from "./settings/AITab";
 import GitHubTab from "./settings/GitHubTab";
 import EngineTab from "./settings/EngineTab";
-import AdminTab from "./settings/AdminTab"; // <<< ИЗМЕНЕНИЕ
+import AdminTab from "./settings/AdminTab";
 
 interface AISettings {
   apiKey: string;
@@ -16,7 +16,6 @@ interface AISettings {
   customPrompt?: string;
 }
 
-// <<< ИЗМЕНЕНИЕ: Добавляем новые пропсы для админ-панели
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -32,32 +31,31 @@ interface Props {
   syncingEngine?: boolean;
   onLoadZip?: () => void;
   convertingZip?: boolean;
-  // Новые пропсы
   isAdmin: boolean;
   isTesterMode: boolean;
   onToggleTesterMode: () => void;
   onResetBalance: () => void;
+  isFullPage?: boolean; // New prop for full-page mode
 }
 
-// <<< ИЗМЕНЕНИЕ: Добавляем новую вкладку
 type Tab = "ai" | "github" | "engine" | "admin";
 
 const ALL_TABS: [Tab, string, string][] = [
   ["ai", "ИИ", "Cpu"],
   ["github", "GitHub", "Globe"],
   ["engine", "Engine", "Terminal"],
-  ["admin", "Админ", "Shield"], // Новая вкладка
+  ["admin", "Админ", "Shield"],
 ];
 
 export default function SettingsDrawer({
   open, onClose, settings, onSave, ghSettings, onSaveGh,
   selfEditMode, onSelfEditToggle, publicAiEnabled, onPublicAiToggle,
   onSyncEngine, syncingEngine, onLoadZip, convertingZip,
-  // Новые пропсы
   isAdmin,
   isTesterMode,
   onToggleTesterMode,
   onResetBalance,
+  isFullPage = false, // Default to false
 }: Props) {
   const [tab, setTab] = useState<Tab>("ai");
   const [form, setForm] = useState(settings);
@@ -74,8 +72,116 @@ export default function SettingsDrawer({
     setTimeout(() => setSaved(false), 1500);
   };
 
-  // <<< ИЗМЕНЕНИЕ: Фильтруем вкладки в зависимости от роли
   const TABS = isAdmin ? ALL_TABS : ALL_TABS.filter(([key]) => key !== 'admin');
+
+  const content = (
+    <div className={`flex flex-col ${isFullPage ? '' : 'h-full'}`}>
+      {/* Header */}
+      {!isFullPage && (
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#9333ea]/20 to-indigo-600/20 border border-[#9333ea]/20 flex items-center justify-center">
+                <Icon name="SlidersHorizontal" size={14} className="text-[#9333ea]" />
+                </div>
+                <div>
+                <span className="text-white font-semibold text-sm block leading-tight">{isAdmin ? "Админ-панель" : "Настройки"}</span>
+                <span className="text-white/25 text-[10px]">Lumen Control Center</span>
+                </div>
+            </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+          >
+            <Icon name="X" size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className={`flex border-b border-white/[0.06] px-5 pt-3 gap-5 ${isFullPage ? 'mb-5' : ''}`}>
+        {TABS.map(([key, lbl, ico]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex items-center gap-1.5 pb-2.5 text-sm font-semibold border-b-2 transition-all ${
+              tab === key
+                ? "border-[#9333ea] text-[#9333ea]"
+                : "border-transparent text-white/30 hover:text-white/60"
+            }`}
+          >
+            <Icon name={ico as any} size={14} />
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {/* Body */}
+      <div className={`flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5 ${isFullPage ? 'overflow-visible' : ''}`}>
+        {tab === "ai" && (
+          <AITab
+            form={form}
+            setForm={setForm}
+            showKey={showKey}
+            setShowKey={setShowKey}
+          />
+        )}
+
+        {tab === "github" && (
+          <GitHubTab
+            ghForm={ghForm}
+            setGhForm={setGhForm}
+            showToken={showToken}
+            setShowToken={setShowToken}
+          />
+        )}
+
+        {tab === "engine" && (
+          <EngineTab
+            ghForm={ghForm}
+            setGhForm={setGhForm}
+            showEngineToken={showEngineToken}
+            setShowEngineToken={setShowEngineToken}
+            publicAiEnabled={publicAiEnabled}
+            onPublicAiToggle={onPublicAiToggle}
+            selfEditMode={selfEditMode}
+            onSelfEditToggle={onSelfEditToggle}
+            syncingEngine={syncingEngine}
+            onSyncEngine={onSyncEngine}
+            onLoadZip={onLoadZip}
+            convertingZip={convertingZip}
+            onSaveAndSync={handleSave}
+          />
+        )}
+        
+        {tab === "admin" && isAdmin && (
+          <AdminTab 
+              isTesterMode={isTesterMode}
+              onToggleTesterMode={onToggleTesterMode}
+              onResetBalance={onResetBalance}
+          />
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className={`${isFullPage ? 'mt-6' : 'px-5 py-4 border-t border-white/[0.06]'}`}>
+        <motion.button
+          whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+          onClick={handleSave}
+          className={`w-full h-11 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+            saved
+              ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-400"
+              : "bg-[#9333ea] hover:bg-[#7e22ce] text-white"
+          }`}
+        >
+          {saved ? <><Icon name="Check" size={16} />Сохранено</> : <><Icon name="Save" size={16} />Сохранить изменения</>}
+        </motion.button>
+      </div>
+    </div>
+  );
+
+  if (isFullPage) {
+    return content;
+  }
 
   return (
     <AnimatePresence>
@@ -95,105 +201,7 @@ export default function SettingsDrawer({
             transition={{ type: "spring", damping: 28, stiffness: 280 }}
             className="fixed top-0 right-0 h-full w-full max-w-sm bg-[#0a0a12] border-l border-white/[0.07] z-50 flex flex-col shadow-2xl"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#9333ea]/20 to-indigo-600/20 border border-[#9333ea]/20 flex items-center justify-center">
-                    <Icon name="SlidersHorizontal" size={14} className="text-[#9333ea]" />
-                    </div>
-                    <div>
-                    <span className="text-white font-semibold text-sm block leading-tight">{isAdmin ? "Админ-панель" : "Настройки"}</span>
-                    <span className="text-white/25 text-[10px]">Lumen Control Center</span>
-                    </div>
-                </div>
-              <button
-                onClick={onClose}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-              >
-                <Icon name="X" size={15} />
-              </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex border-b border-white/[0.06] px-5 pt-3 gap-5">
-              {TABS.map(([key, lbl, ico]) => (
-                <button
-                  key={key}
-                  onClick={() => setTab(key)}
-                  className={`flex items-center gap-1.5 pb-2.5 text-xs font-semibold border-b-2 transition-all ${
-                    tab === key
-                      ? "border-[#9333ea] text-[#9333ea]"
-                      : "border-transparent text-white/30 hover:text-white/60"
-                  }`}
-                >
-                  <Icon name={ico as any} size={13} />
-                  {lbl}
-                </button>
-              ))}
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
-              {tab === "ai" && (
-                <AITab
-                  form={form}
-                  setForm={setForm}
-                  showKey={showKey}
-                  setShowKey={setShowKey}
-                />
-              )}
-
-              {tab === "github" && (
-                <GitHubTab
-                  ghForm={ghForm}
-                  setGhForm={setGhForm}
-                  showToken={showToken}
-                  setShowToken={setShowToken}
-                />
-              )}
-
-              {tab === "engine" && (
-                <EngineTab
-                  ghForm={ghForm}
-                  setGhForm={setGhForm}
-                  showEngineToken={showEngineToken}
-                  setShowEngineToken={setShowEngineToken}
-                  publicAiEnabled={publicAiEnabled}
-                  onPublicAiToggle={onPublicAiToggle}
-                  selfEditMode={selfEditMode}
-                  onSelfEditToggle={onSelfEditToggle}
-                  syncingEngine={syncingEngine}
-                  onSyncEngine={onSyncEngine}
-                  onLoadZip={onLoadZip}
-                  convertingZip={convertingZip}
-                  onSaveAndSync={handleSave}
-                />
-              )}
-              
-              {/* <<< ИЗМЕНЕНИЕ: Новая вкладка админа */}
-              {tab === "admin" && isAdmin && (
-                <AdminTab 
-                    isTesterMode={isTesterMode}
-                    onToggleTesterMode={onToggleTesterMode}
-                    onResetBalance={onResetBalance}
-                />
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-white/[0.06]">
-              <motion.button
-                whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
-                onClick={handleSave}
-                className={`w-full h-10 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
-                  saved
-                    ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-400"
-                    : "bg-[#9333ea] hover:bg-[#7e22ce] text-white"
-                }`}
-              >
-                {saved ? <><Icon name="Check" size={15} />Сохранено</> : <><Icon name="Save" size={15} />Сохранить</>}
-              </motion.button>
-            </div>
+            {content}
           </motion.div>
         </>
       )}
