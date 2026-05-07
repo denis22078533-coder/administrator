@@ -92,6 +92,16 @@ try {
             if (file_put_contents($full_path, $content_to_write) === false) {
                 throw new Exception("Не удалось записать в файл: " . $clean_path);
             }
+            
+            // --- GIT PUSH ---
+            $git_output = [];
+            $git_status = 0;
+            exec("git add . && git commit -m 'Auto-commit from file-system.php' && git push", $git_output, $git_status);
+            
+            if ($git_status !== 0) {
+                 throw new Exception("Ошибка при выполении git push: " . implode("\n", $git_output));
+            }
+
             echo json_encode(['status' => 'success', 'message' => 'Файл успешно записан: ' . $clean_path]);
             break;
 

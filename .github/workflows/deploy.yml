@@ -7,30 +7,26 @@ on:
 
 jobs:
   deploy:
-    name: Deploy
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Set up Bun
-      uses: oven-sh/setup-bun@v1
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
       with:
-        bun-version: latest
+        node-version: '20'
 
-    - name: Install dependencies
-      run: bun install
+    - name: Install dependencies and build
+      run: |
+        npm install
+        npm run build
 
-    - name: Build project
-      run: bun run build
-
-    - name: FTP Deploy
+    - name: Deploy to Reg.ru via FTP
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dist/
-        server-dir: public_html/
-        log-level: "verbose"
+        dangerous-clean-slate: true
