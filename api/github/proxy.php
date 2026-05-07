@@ -1,107 +1,133 @@
 <?php
-// Allow from any origin for CORS
+// Язык: php
+// Описание: PHP-прокси для безопасного взаимодействия с GitHub API.
+
+// --- НАСТРОЙКА БЕЗОПАСНОСТИ (CORS) ---
+// Разрешаем запросы с любого источника. В рабочей среде можно ограничить до конкретного домена.
 header("Access-Control-Allow-Origin: *");
+// Разрешаем только методы POST (для запросов к этому прокси) и OPTIONS (для preflight-запросов).
 header("Access-Control-Allow-Methods: POST, OPTIONS");
+// Разрешаем передавать заголовки Content-Type и Authorization.
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// Handle preflight OPTIONS request
+// Браузеры отправляют preflight-запрос методом OPTIONS перед основным запросом,
+// чтобы проверить, разрешен ли CORS. Отвечаем на него успехом.
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(204);
+    http_response_code(204); // No Content
     exit();
 }
 
-// Check if it's a POST request
+// --- ВАЛИДАЦИЯ ВХОДЯЩЕГО ЗАПРОСА ---
+// Принимаем только POST-запросы от фронтенда.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['message' => 'Method Not Allowed']);
+    http_response_code(405); // Method Not Allowed
+    echo json_encode(['message' => 'Ошибка прокси: разрешены только POST-запросы.']);
     exit();
 }
 
-// --- Get data from frontend ---
-$request_data = json_decode(file_get_contents('php://input'), true);
+// Читаем JSON-тело запроса от фронтенда.
+$request_body = file_get_contents('php://input');
+$request_data = json_decode($request_body, true);
 
-if (!$request_data) {
-    http_response_code(400);
-    echo json_encode(['message' => 'Invalid JSON in request body']);
+// Проверяем, что JSON корректный.
+if (json_last_error() !== JSON_ERROR_NONE) {
+    http_response_code(400); // Bad Request
+    echo json_encode(['message' => 'Ошибка прокси: неверный JSON в теле запроса.']);
     exit();
 }
 
+// Извлекаем данные, которые прислал фронтенд.
 $gh_url = $request_data['url'] ?? null;
-$gh_method = $request_data['method'] ?? 'GET';
-$gh_token = $request_data['github_token'] ?? null;
-$gh_body = $request_data['body'] ?? null; // This is expected to be a JSON string from the JS
+$gh_method = strtoupper($request_data['method'] ?? 'GET');
+$gh_token = $request_data['github_token'] ?? null; // Это ENGINE_GITHUB_TOKEN или токен пользователя.
+$gh_body_from_frontend = $request_data['body'] ?? null;
 $gh_frontend_headers = $request_data['headers'] ?? [];
 
-// --- Validation ---
-if (!$gh_url || !str_starts_with($gh_url, 'https://api.github.com/')) {
+// --- ПРОВЕРКА ДАННЫХ ПЕРЕД ОТПРАВКОЙ В GITHUB ---
+$github_api_base = 'https://api.github.com/';
+if (!$gh_url || substr($gh_url, 0, strlen($github_api_base)) !== $github_api_base) {
     http_response_code(400);
-    echo json_encode(['message' => 'A valid GitHub API URL is required.']);
+    echo json_encode(['message' => 'Ошибка прокси: требуется валидный URL для GitHub API.']);
     exit();
 }
 
-if (!$gh_token) {
-    http_response_code(401);
-    echo json_encode(['message' => 'GitHub token is missing in proxy request.']);
+// Токен — обязательное поле. Без него GitHub не авторизует запрос.
+if (empty($gh_token)) {
+    http_response_code(401); // Unauthorized
+    echo json_encode(['message' => 'Ошибка прокси: отсутствует токен GitHub (ENGINE_GITHUB_TOKEN).']);
     exit();
 }
 
-
-// --- Prepare request to GitHub ---
-$headers_to_github = [
+// --- ПОДГОТОВКА И ВЫПОЛНЕНИЕ ЗАПРОСА К GITHUB ---
+// Собираем заголовки для cURL-запроса к GitHub.
+$headers_for_github = [
+    // Главный заголовок авторизации. GitHub требует его для всех запросов.
     'Authorization: Bearer ' . $gh_token,
-    'User-Agent: Muravey-Proxy-PHP/1.0' // Good practice to set a User-Agent
+    // Рекомендуется указывать User-Agent.
+    'User-Agent: Muravey-Proxy-PHP/1.2'
 ];
 
-// Add headers from the frontend payload
-foreach ($gh_frontend_headers as $key => $value) {
-    $headers_to_github[] = "$key: $value";
-}
-// Ensure Content-Type is set if there is a body.
-if ($gh_body !== null) {
-    $headers_to_github[] = 'Content-Type: application/json';
-}
-
-
-$ch = curl_init();
-
-curl_setopt($ch, CURLOPT_URL, $gh_url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $gh_method);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers_to_github);
-curl_setopt($ch, CURLOPT_HEADER, true); // We need headers to forward them
-
-if ($gh_body !== null) {
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $gh_body);
-}
-
-// --- Execute and get response ---
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-$response_headers_str = substr($response, 0, $header_size);
-$response_body = substr($response, $header_size);
-
-$curl_error = curl_error($ch);
-curl_close($ch);
-
-if ($curl_error) {
-    http_response_code(502); // Bad Gateway
-    echo json_encode(['message' => 'cURL Error: ' . $curl_error]);
-    exit();
-}
-
-
-// --- Forward GitHub's response to frontend ---
-http_response_code($http_code);
-
-// Forward most of GitHub's headers
-$response_headers = explode("
-", $response_headers_str);
-foreach ($response_headers as $header) {
-    // Don't forward headers that control the connection between proxy and client
-    if (!empty($header) && !str_starts_with(strtolower($header), 'transfer-encoding') && !str_starts_with(strtolower($header), 'content-length')) {
-        header($header);
+// Добавляем заголовки, которые прислал фронтенд (например, 'Accept').
+if (!empty($gh_frontend_headers) && is_array($gh_frontend_headers)) {
+    foreach ($gh_frontend_headers as $key => $value) {
+        $headers_for_github[] = "$key: $value";
     }
 }
 
+// Инициализируем cURL.
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $gh_url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+// Устанавливаем метод запроса (GET, PUT, POST и т.д.). Это ключ к поддержке PUT.
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $gh_method);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers_for_github);
+// Мы хотим получить заголовки ответа от GitHub, чтобы переслать их клиенту.
+curl_setopt($ch, CURLOPT_HEADER, true);
+
+// Если это PUT или POST запрос, добавляем тело запроса.
+if ($gh_method === 'PUT' || $gh_method === 'POST') {
+    if ($gh_body_from_frontend !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $gh_body_from_frontend);
+    }
+}
+
+// Выполняем запрос.
+$response_from_github = curl_exec($ch);
+$curl_error_num = curl_errno($ch);
+$curl_error_msg = curl_error($ch);
+
+// Проверяем на ошибки cURL.
+if ($curl_error_num > 0) {
+    http_response_code(502); // Bad Gateway
+    echo json_encode(['message' => 'Ошибка cURL прокси: ' . $curl_error_msg]);
+    curl_close($ch);
+    exit();
+}
+
+// Получаем метаданные ответа.
+$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+curl_close($ch);
+
+// --- ПЕРЕСЫЛКА ОТВЕТА ОТ GITHUB НА ФРОНТЕНД ---
+// Разделяем заголовки и тело ответа.
+$response_headers = substr($response_from_github, 0, $header_size);
+$response_body = substr($response_from_github, $header_size);
+
+// Устанавливаем тот же HTTP-код, который вернул GitHub.
+http_response_code($http_code);
+
+// Пересылаем заголовки ответа GitHub клиенту.
+$header_lines = explode("
+", $response_headers);
+foreach ($header_lines as $header) {
+    // Исключаем заголовки, которые не должны быть переданы клиенту.
+    if (!empty($header) && stripos($header, 'Transfer-Encoding') === false) {
+        header($header, false);
+    }
+}
+
+// Отправляем тело ответа от GitHub.
 echo $response_body;
+
+?>
