@@ -50,7 +50,8 @@ export function useGitHub(isAdminMode: boolean) {
     initialSha: string,
     path: string,
     repo: string,
-    token: string
+    token: string,
+    commitMessage: string
   ): Promise<{ ok: boolean; message: string }> => {
     if (!token || !repo) {
       return { ok: false, message: "Токен или репозиторий не настроен" };
@@ -71,7 +72,7 @@ export function useGitHub(isAdminMode: boolean) {
     const content = btoa(new TextDecoder("utf-8").decode(new TextEncoder().encode(html)));
 
     const reqBody: { message: string; content: string; branch: string; sha?: string } = {
-      message: `Lumen: правки в ${path}`,
+      message: commitMessage,
       content,
       branch: "main",
     };
@@ -106,7 +107,7 @@ export function useGitHub(isAdminMode: boolean) {
     
     if (isAdminMode) {
       // Режим АДМИНИСТРАТОРА: выгрузка в репозиторий платформы
-      return privatePush(html, sha, filePath, ghSettings.engineRepo, ghSettings.engineToken);
+      return privatePush(html, sha, filePath, ghSettings.engineRepo, ghSettings.engineToken, `Lumen: правки в ${filePath}`);
     }
 
     // Режим ПОЛЬЗОВАТЕЛЯ: выгрузка в репозиторий пользователя
@@ -116,7 +117,7 @@ export function useGitHub(isAdminMode: boolean) {
     }
     // 2. Путь всегда "index.html"
     const targetPath = "index.html";
-    return privatePush(html, sha, targetPath, ghSettings.repo, ghSettings.token);
+    return privatePush(html, sha, targetPath, ghSettings.repo, ghSettings.token, `Lumen: правки в ${targetPath}`);
 
   }, [ghSettings, isAdminMode, privatePush]);
 
@@ -190,7 +191,7 @@ export function useGitHub(isAdminMode: boolean) {
         const decodedContent = atob(blobData.content);
 
         onProgress?.(`(${i + 1}/${files.length}) Сохранение ${file.path} в репозиторий пользователя...`);
-        const pushResult = await privatePush(decodedContent, "", file.path, targetRepo, targetToken);
+        const pushResult = await privatePush(decodedContent, "", file.path, targetRepo, targetToken, `Синхронизация: ${file.path}`);
 
         if (!pushResult.ok) {
           throw new Error(`Не удалось сохранить ${file.path}: ${pushResult.message}`);
