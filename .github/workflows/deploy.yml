@@ -29,4 +29,6 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dist/
+        server-dir: www/xn--80afnez1h.xn--p1ai/
         dangerous-clean-slate: true
+
