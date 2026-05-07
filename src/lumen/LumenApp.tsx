@@ -257,7 +257,7 @@ export default function LumenApp() {
         });
         await Promise.all(assetPromises);
 
-        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\/?>/gi, (match, href) => {
+        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -270,7 +270,7 @@ export default function LumenApp() {
           return match;
         });
 
-        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -278,7 +278,7 @@ export default function LumenApp() {
             : zipAssets[normalized] !== undefined ? normalized
             : Object.keys(zipAssets).find(k => k.endsWith(fileName));
           if (key && zipAssets[key]) {
-            const attrs = (pre + post).replace(/\s*src=['"][^'"]*['"]/gi, "").replace(/\s*type=['"]module['"]/gi, "");
+            const attrs = (pre + post).replace(/\\s*src=['"][^'"]*['"]/gi, "").replace(/\\s*type=['"]module['"]/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
           return match;
@@ -307,9 +307,9 @@ export default function LumenApp() {
 
 
 ### Файл: ${path}
-\'\'\'
+\\\'\\\'\\\'
 ${content.slice(0, 6000)}
-\'\'\'`)
+\\\'\\\'\\\'`)
           .join("");
 
         const zipPrompt = `Конвертируй этот React/Vite проект (${fileCount} файлов) в один HTML файл. Сохрани все тексты, цвета и структуру точно как в оригинале. Верни ТОЛЬКО HTML.\\\\n\\\\n--- ФАЙЛЫ ПРОЕКТА ---${filesContext}\\\\n--- КОНЕЦ ФАЙЛОВ ---`;
@@ -375,13 +375,13 @@ ${content.slice(0, 6000)}
   };
 
   const extractArtifact = (raw: string): { text: string; artifact: string } => {
-    const artifactMatch = raw.match(/<boltArtifact>([\s\S]*?)<\/boltArtifact>/i);
+    const artifactMatch = raw.match(/<boltArtifact>([\\s\\S]*?)<\\/boltArtifact>/i);
     if (artifactMatch && artifactMatch[1]) {
       const artifact = artifactMatch[1].trim();
       const text = raw.substring(0, artifactMatch.index).trim() || "Готово! Внес изменения в код.";
       return { text, artifact };
     }
-    const mdMatch = raw.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    const mdMatch = raw.match(/```(?:html)?\\s*([\\s\\S]*?)```/i);
     if (mdMatch && mdMatch[1]) {
         return { text: "Готово, вот код:", artifact: mdMatch[1].trim() };
     }
@@ -389,9 +389,11 @@ ${content.slice(0, 6000)}
   };
 
   const injectLightTheme = (html: string): string => {
-    const forceCss = `<style data-lumen-fix>\\\\n      html,body{background:#ffffff!important;color:#111111!important;}\\\\n    </style>`;
-    if (/<\\/head>/i.test(html)) {
-      return html.replace(/<\\/head>/i, `${forceCss}</head>`);
+    const forceCss = `<style data-lumen-fix>
+      html,body{background:#ffffff!important;color:#111111!important;}
+    </style>`;
+    if (/<\/head>/i.test(html)) {
+      return html.replace(/<\/head>/i, `${forceCss}</head>`);
     }
     if (/<body/i.test(html)) {
       return html.replace(/<body([^>]*)>/i, `<head>${forceCss}</head><body$1>`);
@@ -406,10 +408,10 @@ ${content.slice(0, 6000)}
       return html.replace(/<base\\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href="${base}">`);
     }
     if (/<head>/i.test(html)) {
-      return html.replace(/<head>/i, `<head>\\\\n  <base href="${base}">`);
+      return html.replace(/<head>/i, `<head>\\n  <base href="${base}">`);
     }
     if (/<html[^>]*>/i.test(html)) {
-      return html.replace(/(<html[^>]*>)/i, `$1\\\\n<head><base href="${base}"></head>`);
+      return html.replace(/(<html[^>]*>)/i, `$1\\n<head><base href="${base}"></head>`);
     }
     return html;
   };
@@ -421,7 +423,7 @@ ${content.slice(0, 6000)}
       if (msg.html?.startsWith("__IMAGE__:")) continue;
       if (msg.track) continue;
       const content = msg.html
-        ? msg.html.length > 64000 ? msg.text + "\\\\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
+        ? msg.html.length > 64000 ? msg.text + "\\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
         : msg.text;
       history.push({ role: msg.role === "user" ? "user" : "assistant", content });
     }
@@ -730,19 +732,19 @@ ${content.slice(0, 6000)}
 
 ДОСТУПНЫЕ ДЕЙСТВИЯ:
 -   **Прочитать файл**:
-    \'\'\'action
+    \\\'\\\'\\\'action
     {"action":"read","path":"src/lumen/LumenApp.tsx"}
-    \'\'\'
+    \\\'\\\'\\\'
 -   **Записать файл**:
-    \'\'\'action
+    \\\'\\\'\\\'action
     {"action":"write","path":"src/lumen/LumenApp.tsx","content":"... полный код файла ..."}
-    \'\'\'
+    \\\'\\\'\\\'
 -   **Чтение нескольких файлов**:
-    \'\'\'action
+    \\\'\\\'\\\'action
     {"action":"read_multiple","paths":["src/lumen/LumenApp.tsx", "src/lumen/useGitHub.ts"]}
-    \'\'\'
+    \\\'\\\'\\\'
 
-Пример: Пользователь просит "добавь кнопку". Ты сначала читаешь файл, потом возвращаешь измененный код в \`write\` action.`;
+Пример: Пользователь просит "добавь кнопку". Ты сначала читаешь файл, потом возвращаешь измененный код в \\`write\\` action.`;
 
         const response = await callAI(systemPrompt, text, (chars) => setCycleLabel(`Автопилот: ${chars} симв.`), true);
 
@@ -773,7 +775,7 @@ ${content.slice(0, 6000)}
                 const result = await readLocalFile(actionData.path);
                 if (result.content !== undefined) {
                     const body = result.content.length > 7000 ? result.content.slice(0, 7000) + "\\\\n... [файл обрезан]" : result.content;
-                    followUpPrompt += `Содержимое файла ${actionData.path}:\\\\n\'\'\'\\\\n${body}\\\\n\'\'\'\\\\n\\\\n`;
+                    followUpPrompt += `Содержимое файла ${actionData.path}:\\\\n\\\'\\\'\\\'\\\\n${body}\\\\n\\\'\\\'\\\'\\\\n\\\\n`;
                 } else {
                     followUpPrompt += `❌ Ошибка чтения ${actionData.path}: ${result.error}\\\\n`;
                 }
@@ -784,7 +786,7 @@ ${content.slice(0, 6000)}
                     const result = await readLocalFile(p);
                     if (result.content !== undefined) {
                          const body = result.content.length > 7000 ? result.content.slice(0, 7000) + "\\\\n... [файл обрезан]" : result.content;
-                        followUpPrompt += `Содержимое файла ${p}:\\\\n\'\'\'\\\\n${body}\\\\n\'\'\'\\\\n\\\\n`;
+                        followUpPrompt += `Содержимое файла ${p}:\\\\n\\\'\\\'\\\'\\\\n${body}\\\\n\\\'\\\'\\\'\\\\n\\\\n`;
                     } else {
                         followUpPrompt += `❌ Ошибка чтения ${p}: ${result.error}\\\\n`;
                     }
@@ -794,12 +796,12 @@ ${content.slice(0, 6000)}
                 const writeResult = await writeLocalFile(actionData.path, actionData.content);
 
                 if (writeResult.ok) {
-                    setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ Файл \`${actionData.path}\` сохранен. Начинаю синхронизацию с GitHub...` }]);
+                    setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ Файл \\`${actionData.path}\\` сохранен. Начинаю синхронизацию с GitHub...` }]);
                     setCycleLabel(`Синхронизирую ${actionData.path} с GitHub...`);
 
                     const pushResult = await pushToGitHub(actionData.content, "", actionData.path);
                     if (pushResult.ok) {
-                        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ \`${actionData.path}\` синхронизирован с GitHub.` }]);
+                        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ \\`${actionData.path}\\` синхронизирован с GitHub.` }]);
                     } else {
                         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `❌ Ошибка синхронизации с GitHub: ${pushResult.message}` }]);
                     }
@@ -910,7 +912,7 @@ ${content.slice(0, 6000)}
         setCycleStatus("generating");
         setCycleLabel("Генерирую картинки...");
         const imgPromptsRaw = await callAI(
-          `Пользователь просит создать сайт. Определи какие картинки нужны и придумай 2-3 коротких описания на английском языке для генерации изображений через AI.\\\\nПравила: описания должны точно соответствовать теме сайта, быть визуально красивыми, фотореалистичными.\\\\nВерни ТОЛЬКО JSON массив строк, например: ["modern gym interior with equipment", "fitness trainer with client"].\\\\nБез пояснений, только JSON.`,
+          `Пользователь просит создать сайт. Определи какие картинки нужны и придумай 2-3 коротких описания на английском языке для генерации изображений через AI.\\\\nПравила: описания должны точно соответствовать теме сайта, быть визуально красивыми, фотореалистичными.\\\\nВерни ТОЛЬКО JSON массив строк, например: [\\"modern gym interior with equipment\\", \\"fitness trainer with client\\"].\\\\nБез пояснений, только JSON.`,
           text
         );
         let imgPrompts: string[] = [];
@@ -961,7 +963,7 @@ ${content.slice(0, 6000)}
       }
       
       if (!/<[a-z][\\s\\S]*>/i.test(cleanHtml)) {
-        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: "${cleanHtml.slice(0, 200)}". Попробуйте ещё раз.`);
+        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: \\"${cleanHtml.slice(0, 200)}\\". Попробуйте ещё раз.`);
       }
 
       if (abortRef.current) return;
@@ -1281,7 +1283,7 @@ ${content.slice(0, 6000)}
                   </div>
 
                   <div className="flex-1 min-h-0 overflow-hidden relative md:flex md:gap-2 md:p-2">
-                    <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>\n                      {!publicAiEnabled ? (
+                    <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>\\n                      {!publicAiEnabled ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                           <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
                             ?
