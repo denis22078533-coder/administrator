@@ -257,7 +257,7 @@ export default function LumenApp() {
         });
         await Promise.all(assetPromises);
 
-        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\\/?>/gi, (match, href) => {
+        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -270,7 +270,7 @@ export default function LumenApp() {
           return match;
         });
 
-        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -278,7 +278,7 @@ export default function LumenApp() {
             : zipAssets[normalized] !== undefined ? normalized
             : Object.keys(zipAssets).find(k => k.endsWith(fileName));
           if (key && zipAssets[key]) {
-            const attrs = (pre + post).replace(/\\s*src=['"][^'"]*['"]/gi, "").replace(/\\s*type=['"]module['"]/gi, "");
+            const attrs = (pre + post).replace(/\s*src=['"][^'"]*['"]/gi, "").replace(/\s*type=['"]module['"]/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
           return match;
@@ -301,18 +301,11 @@ export default function LumenApp() {
         if (fileCount === 0) throw new Error("В архиве не найдены файлы проекта");
 
         const filesContext = Object.entries(files)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([path, content]) => `
-
-
-
-### Файл: ${path}
-\\\'\\\'\\\'
-${content.slice(0, 6000)}
-\\\'\\\'\\\'`)
+          .sort(([a, b]) => a.localeCompare(b))
+          .map(([path, content]) => `\n\n\n\n### Файл: ${path}\n\'\'\'\n${content.slice(0, 6000)}\n\'\'\'`)
           .join("");
 
-        const zipPrompt = `Конвертируй этот React/Vite проект (${fileCount} файлов) в один HTML файл. Сохрани все тексты, цвета и структуру точно как в оригинале. Верни ТОЛЬКО HTML.\\\\n\\\\n--- ФАЙЛЫ ПРОЕКТА ---${filesContext}\\\\n--- КОНЕЦ ФАЙЛОВ ---`;
+        const zipPrompt = `Конвертируй этот React/Vite проект (${fileCount} файлов) в один HTML файл. Сохрани все тексты, цвета и структуру точно как в оригинале. Верни ТОЛЬКО HTML.\n\n--- ФАЙЛЫ ПРОЕКТА ---${filesContext}\n--- КОНЕЦ ФАЙЛОВ ---`;
 
         setCycleLabel("Конвертирую...");
         setCycleStatus("generating");
@@ -375,13 +368,13 @@ ${content.slice(0, 6000)}
   };
 
   const extractArtifact = (raw: string): { text: string; artifact: string } => {
-    const artifactMatch = raw.match(/<boltArtifact>([\\s\\S]*?)<\\/boltArtifact>/i);
+    const artifactMatch = raw.match(/<boltArtifact>([\s\S]*?)<\/boltArtifact>/i);
     if (artifactMatch && artifactMatch[1]) {
       const artifact = artifactMatch[1].trim();
       const text = raw.substring(0, artifactMatch.index).trim() || "Готово! Внес изменения в код.";
       return { text, artifact };
     }
-    const mdMatch = raw.match(/```(?:html)?\\s*([\\s\\S]*?)```/i);
+    const mdMatch = raw.match(/```(?:html)?\s*([\s\S]*?)```/i);
     if (mdMatch && mdMatch[1]) {
         return { text: "Готово, вот код:", artifact: mdMatch[1].trim() };
     }
@@ -389,13 +382,11 @@ ${content.slice(0, 6000)}
   };
 
   const injectLightTheme = (html: string): string => {
-    const forceCss = `<style data-lumen-fix>
-      html,body{background:#ffffff!important;color:#111111!important;}
-    </style>`;
-    if (/<\/head>/i.test(html)) {
+    const forceCss = `<style data-lumen-fix>\n      html,body{background:#ffffff!important;color:#111111!important;}\n    </style>`;
+    if (html.toLowerCase().includes("</head>")) {
       return html.replace(/<\/head>/i, `${forceCss}</head>`);
     }
-    if (/<body/i.test(html)) {
+    if (html.toLowerCase().includes("<body")) {
       return html.replace(/<body([^>]*)>/i, `<head>${forceCss}</head><body$1>`);
     }
     return forceCss + html;
@@ -404,14 +395,14 @@ ${content.slice(0, 6000)}
   const injectBaseHref = (html: string, baseUrl: string): string => {
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-    if (/<base\\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href="${base}">`);
+    if (/<base\s[^>]*href/i.test(html)) {
+      return html.replace(/<base\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href="${base}">`);
     }
     if (/<head>/i.test(html)) {
-      return html.replace(/<head>/i, `<head>\\n  <base href="${base}">`);
+      return html.replace(/<head>/i, `<head>\n  <base href="${base}">`);
     }
     if (/<html[^>]*>/i.test(html)) {
-      return html.replace(/(<html[^>]*>)/i, `$1\\n<head><base href="${base}"></head>`);
+      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href="${base}"></head>`);
     }
     return html;
   };
@@ -423,7 +414,7 @@ ${content.slice(0, 6000)}
       if (msg.html?.startsWith("__IMAGE__:")) continue;
       if (msg.track) continue;
       const content = msg.html
-        ? msg.html.length > 64000 ? msg.text + "\\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
+        ? msg.html.length > 64000 ? msg.text + "\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
         : msg.text;
       history.push({ role: msg.role === "user" ? "user" : "assistant", content });
     }
@@ -432,7 +423,7 @@ ${content.slice(0, 6000)}
   };
 
   const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 300000): Promise<string> => {
-    const rawBase = (settings.baseUrl || "").trim().replace(/\\/+$/, "");
+    const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
     const isOpenAI = settings.provider === "openai";
 
     const chatMessages = useHistory
@@ -449,7 +440,7 @@ ${content.slice(0, 6000)}
 
     if (isOpenAI) {
       const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
-      const parsedHost = base.replace(/^https?:\\/\\//, "").split("/")[0].toLowerCase();
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
       if (PROXYAPI_HOSTS.has(parsedHost)) {
         endpoint = "https://api.proxyapi.ru/openai/v1/chat/completions";
       } else if (base.endsWith("/chat/completions")) {
@@ -470,7 +461,7 @@ ${content.slice(0, 6000)}
       };
     } else {
       const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
-      const parsedHost = base.replace(/^https?:\\/\\//, "").split("/")[0].toLowerCase();
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
       if (PROXYAPI_HOSTS.has(parsedHost)) {
         endpoint = "https://api.proxyapi.ru/anthropic/v1/messages";
       } else if (base.endsWith("/messages")) {
@@ -732,23 +723,23 @@ ${content.slice(0, 6000)}
 
 ДОСТУПНЫЕ ДЕЙСТВИЯ:
 -   **Прочитать файл**:
-    \\\'\\\'\\\'action
+    \'\'\'action
     {"action":"read","path":"src/lumen/LumenApp.tsx"}
-    \\\'\\\'\\\'
+    \'\'\'
 -   **Записать файл**:
-    \\\'\\\'\\\'action
+    \'\'\'action
     {"action":"write","path":"src/lumen/LumenApp.tsx","content":"... полный код файла ..."}
-    \\\'\\\'\\\'
+    \'\'\'
 -   **Чтение нескольких файлов**:
-    \\\'\\\'\\\'action
+    \'\'\'action
     {"action":"read_multiple","paths":["src/lumen/LumenApp.tsx", "src/lumen/useGitHub.ts"]}
-    \\\'\\\'\\\'
+    \'\'\'
 
-Пример: Пользователь просит "добавь кнопку". Ты сначала читаешь файл, потом возвращаешь измененный код в \\`write\\` action.`;
+Пример: Пользователь просит "добавь кнопку". Ты сначала читаешь файл, потом возвращаешь измененный код в \`write\` action.`;
 
         const response = await callAI(systemPrompt, text, (chars) => setCycleLabel(`Автопилот: ${chars} симв.`), true);
 
-        const actionMatches = response.match(/```action\\s*([\\s\\S]*?)```/g);
+        const actionMatches = response.match(/```action\s*([\s\S]*?)```/g);
         if (!actionMatches) {
             setCycleStatus("done"); setCycleLabel("");
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response }]);
@@ -758,11 +749,11 @@ ${content.slice(0, 6000)}
         const actions: any[] = [];
         for (const match of actionMatches) {
             try {
-                actions.push(JSON.parse(match.replace(/```action\\s*|```/g, "").trim()));
+                actions.push(JSON.parse(match.replace(/```action\s*|```/g, "").trim()));
             } catch (e) { console.error("Invalid action JSON:", e); }
         }
 
-        let currentText = response.replace(/```action[\\s\\S]*?```/g, "").trim();
+        let currentText = response.replace(/```action[\s\S]*?```/g, "").trim();
         if (currentText) {
             setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: currentText }]);
         }
@@ -774,10 +765,10 @@ ${content.slice(0, 6000)}
                 setCycleLabel(`Читаю ${actionData.path} с сервера...`);
                 const result = await readLocalFile(actionData.path);
                 if (result.content !== undefined) {
-                    const body = result.content.length > 7000 ? result.content.slice(0, 7000) + "\\\\n... [файл обрезан]" : result.content;
-                    followUpPrompt += `Содержимое файла ${actionData.path}:\\\\n\\\'\\\'\\\'\\\\n${body}\\\\n\\\'\\\'\\\'\\\\n\\\\n`;
+                    const body = result.content.length > 7000 ? result.content.slice(0, 7000) + "\n... [файл обрезан]" : result.content;
+                    followUpPrompt += `Содержимое файла ${actionData.path}:\n\'\'\'\n${body}\n\'\'\'\n\n`;
                 } else {
-                    followUpPrompt += `❌ Ошибка чтения ${actionData.path}: ${result.error}\\\\n`;
+                    followUpPrompt += `❌ Ошибка чтения ${actionData.path}: ${result.error}\n`;
                 }
             } else if (actionData.action === "read_multiple" && actionData.paths && actionData.paths.length > 0) {
                 setCycleLabel(`Читаю ${actionData.paths.length} файлов...`);
@@ -785,10 +776,10 @@ ${content.slice(0, 6000)}
                     setCycleLabel(`Читаю ${p}...`);
                     const result = await readLocalFile(p);
                     if (result.content !== undefined) {
-                         const body = result.content.length > 7000 ? result.content.slice(0, 7000) + "\\\\n... [файл обрезан]" : result.content;
-                        followUpPrompt += `Содержимое файла ${p}:\\\\n\\\'\\\'\\\'\\\\n${body}\\\\n\\\'\\\'\\\'\\\\n\\\\n`;
+                         const body = result.content.length > 7000 ? result.content.slice(0, 7000) + "\n... [файл обрезан]" : result.content;
+                        followUpPrompt += `Содержимое файла ${p}:\n\'\'\'\n${body}\n\'\'\'\n\n`;
                     } else {
-                        followUpPrompt += `❌ Ошибка чтения ${p}: ${result.error}\\\\n`;
+                        followUpPrompt += `❌ Ошибка чтения ${p}: ${result.error}\n`;
                     }
                 }
             } else if (actionData.action === "write" && actionData.path && typeof actionData.content === 'string') {
@@ -796,12 +787,12 @@ ${content.slice(0, 6000)}
                 const writeResult = await writeLocalFile(actionData.path, actionData.content);
 
                 if (writeResult.ok) {
-                    setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ Файл \\`${actionData.path}\\` сохранен. Начинаю синхронизацию с GitHub...` }]);
+                    setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ Файл \`${actionData.path}\` сохранен. Начинаю синхронизацию с GitHub...` }]);
                     setCycleLabel(`Синхронизирую ${actionData.path} с GitHub...`);
 
                     const pushResult = await pushToGitHub(actionData.content, "", actionData.path);
                     if (pushResult.ok) {
-                        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ \\`${actionData.path}\\` синхронизирован с GitHub.` }]);
+                        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ \`${actionData.path}\` синхронизирован с GitHub.` }]);
                     } else {
                         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `❌ Ошибка синхронизации с GitHub: ${pushResult.message}` }]);
                     }
@@ -818,7 +809,7 @@ ${content.slice(0, 6000)}
             const finalResponseText = await callAI(systemPrompt, followUpText, (c) => setCycleLabel(`Автопилот: ${c} симв.`), true);
             
             // Check if the final response also has actions and handle them.
-            const finalActionMatches = finalResponseText.match(/```action\\s*([\\s\\S]*?)```/g);
+            const finalActionMatches = finalResponseText.match(/```action\s*([\s\S]*?)```/g);
             if(finalActionMatches) {
                  await handleSelfEditChat(finalResponseText); // Recursive call
             } else {
@@ -880,7 +871,7 @@ ${content.slice(0, 6000)}
 
     try {
       let currentHtml = "";
-      const customAddition = settings.customPrompt?.trim() ? `\\\\n\\\\n## Дополнительные инструкции от владельца:\\\\n${settings.customPrompt.trim()}` : "";
+      const customAddition = settings.customPrompt?.trim() ? `\n\n## Дополнительные инструкции от владельца:\n${settings.customPrompt.trim()}` : "";
       let systemPrompt = CREATE_SYSTEM_PROMPT + customAddition;
 
       if (fullCodeContext) {
@@ -888,7 +879,7 @@ ${content.slice(0, 6000)}
         systemPrompt = LOCAL_FILE_EDIT_PROMPT(currentHtml, fullCodeContext.fileName) + customAddition;
       } else if (ghSettings.token && ghSettings.repo) {
         setCycleStatus("reading");
-        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
         setCycleLabel(`Читаю ${filePath} из GitHub...`);
         const fetched = await fetchFromGitHub();
         if (fetched.ok && fetched.html) {
@@ -912,12 +903,12 @@ ${content.slice(0, 6000)}
         setCycleStatus("generating");
         setCycleLabel("Генерирую картинки...");
         const imgPromptsRaw = await callAI(
-          `Пользователь просит создать сайт. Определи какие картинки нужны и придумай 2-3 коротких описания на английском языке для генерации изображений через AI.\\\\nПравила: описания должны точно соответствовать теме сайта, быть визуально красивыми, фотореалистичными.\\\\nВерни ТОЛЬКО JSON массив строк, например: [\\"modern gym interior with equipment\\", \\"fitness trainer with client\\"].\\\\nБез пояснений, только JSON.`,
+          `Пользователь просит создать сайт. Определи какие картинки нужны и придумай 2-3 коротких описания на английском языке для генерации изображений через AI.\nПравила: описания должны точно соответствовать теме сайта, быть визуально красивыми, фотореалистичными.\nВерни ТОЛЬКО JSON массив строк, например: [\"modern gym interior with equipment\", \"fitness trainer with client\"].\nБез пояснений, только JSON.`,
           text
         );
         let imgPrompts: string[] = [];
         try {
-          const match = imgPromptsRaw.match(/\\[[\\s\\S]*?\\]/);
+          const match = imgPromptsRaw.match(/\[[\s\S]*?\]/);
           if (match) imgPrompts = JSON.parse(match[0]);
         } catch { imgPrompts = []; }
 
@@ -937,8 +928,8 @@ ${content.slice(0, 6000)}
             } catch { /* продолжаем без этой картинки */ }
           }
           if (generatedUrls.length > 0) {
-            const urlList = generatedUrls.map((u, i) => `URL картинки ${i + 1}: ${u}`).join("\\\\n");
-            enrichedText = `${text}\\\\n\\\\nВАЖНО: Я уже сгенерировал специальные картинки для этого сайта. ОБЯЗАТЕЛЬНО используй их в дизайне:\\\\n${urlList}\\\\n\\\\nТребования к использованию картинок:\\\\n- Первая картинка — главный баннер/герой секция на всю ширину (object-fit: cover, height: 400-500px)\\\\n- Остальные картинки — в галерее, карточках или секциях сайта\\\\n- Все <img> должны иметь style="object-fit: cover" и заданные размеры\\\\n- НЕ используй placeholder-картинки — только переданные URL`;
+            const urlList = generatedUrls.map((u, i) => `URL картинки ${i + 1}: ${u}`).join("\n");
+            enrichedText = `${text}\n\nВАЖНО: Я уже сгенерировал специальные картинки для этого сайта. ОБЯЗАТЕЛЬНО используй их в дизайне:\n${urlList}\n\nТребования к использованию картинок:\n- Первая картинка — главный баннер/герой секция на всю ширину (object-fit: cover, height: 400-500px)\n- Остальные картинки — в галерее, карточках или секциях сайта\n- Все <img> должны иметь style="object-fit: cover" и заданные размеры\n- НЕ используй placeholder-картинки — только переданные URL`;
           }
         }
       }
@@ -962,8 +953,8 @@ ${content.slice(0, 6000)}
         return;
       }
       
-      if (!/<[a-z][\\s\\S]*>/i.test(cleanHtml)) {
-        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: \\"${cleanHtml.slice(0, 200)}\\". Попробуйте ещё раз.`);
+      if (!/<[a-z][\s\S]*>/i.test(cleanHtml)) {
+        throw new Error(`Модель вернула некорректный код в блоке <boltArtifact>: \"${cleanHtml.slice(0, 200)}\". Попробуйте ещё раз.`);
       }
 
       if (abortRef.current) return;
@@ -984,7 +975,7 @@ ${content.slice(0, 6000)}
 
       if (ghSettings.token && ghSettings.repo) {
         setCycleLabel("Загружаю в GitHub...");
-        const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+        const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
         const pushResult = await pushToGitHub(cleanHtml, "", filePath);
 
         if (pushResult.ok) {
@@ -1031,7 +1022,7 @@ ${content.slice(0, 6000)}
     setDeployingId(msgId);
     setDeployResult(null);
 
-    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
     setCycleStatus("generating");
     setCycleLabel(`Сохраняю ${filePath} в GitHub...`);
 
@@ -1137,7 +1128,7 @@ ${content.slice(0, 6000)}
         throw new Error("GitHub не настроен.");
     }
     if (!previewHtml) throw new Error("Нет кода для сохранения.");
-    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\\//, "");
+    const filePath = currentFilePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
     const result = await pushToGitHub(previewHtml, currentFileSha, filePath);
     if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
     try {
@@ -1283,7 +1274,7 @@ ${content.slice(0, 6000)}
                   </div>
 
                   <div className="flex-1 min-h-0 overflow-hidden relative md:flex md:gap-2 md:p-2">
-                    <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>\\n                      {!publicAiEnabled ? (
+                    <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>\n                      {!publicAiEnabled ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                           <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
                             ?
