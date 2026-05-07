@@ -259,9 +259,11 @@ export default function LumenApp() {
 
         let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
+					const lastSlash = normalized.lastIndexOf("/");
+					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
-            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\\//, "")));
+            : Object.keys(zipAssets).find(k => k.endsWith(fileName));
           if (key && zipAssets[key]) {
             return `<style>${zipAssets[key]}</style>`;
           }
@@ -270,9 +272,11 @@ export default function LumenApp() {
 
         inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
+					const lastSlash = normalized.lastIndexOf("/");
+					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
           const key = zipAssets[baseDir + normalized] !== undefined ? baseDir + normalized
             : zipAssets[normalized] !== undefined ? normalized
-            : Object.keys(zipAssets).find(k => k.endsWith(normalized.replace(/^.*\\//, "")));
+            : Object.keys(zipAssets).find(k => k.endsWith(fileName));
           if (key && zipAssets[key]) {
             const attrs = (pre + post).replace(/\s*src=['"][^'"]*['"]/gi, "").replace(/\s*type=['"]module['"]/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
