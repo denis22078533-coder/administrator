@@ -39,7 +39,7 @@ export interface FetchResult {
 
 // Утилита для выполнения запросов через прокси
 async function fetchViaProxy(url: string, method: string, token: string, body?: any): Promise<Response> {
-    const proxyUrl = `/api/github/proxy`; 
+    const proxyUrl = `https://югазин.рф/api/github/proxy`;
     const authToken = localStorage.getItem("lumen_token");
 
     const headers = {
