@@ -129,6 +129,49 @@ def reset_my_balance(current_user):
     else:
         return jsonify({"message": "Не удалось сбросить баланс"}), 500
 
+@app.route('/api/github/proxy', methods=['POST'])
+@token_required
+def github_proxy(current_user):
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Request body must be JSON."}), 400
+
+    gh_url = data.get('url')
+    gh_method = data.get('method', 'GET').upper()
+    gh_headers = data.get('headers', {})
+    gh_body = data.get('body')
+    github_token = data.get('github_token')
+
+    if not gh_url or not gh_url.startswith('https://api.github.com/'):
+        return jsonify({"message": "A valid GitHub API URL is required."}), 400
+    
+    if not github_token:
+        return jsonify({"message": "GitHub token is missing in proxy request."}), 401
+
+    headers_to_github = {
+        'Authorization': f'Bearer {github_token}',
+    }
+    headers_to_github.update(gh_headers)
+
+    try:
+        response = requests.request(
+            method=gh_method,
+            url=gh_url,
+            headers=headers_to_github,
+            data=gh_body.encode('utf-8') if gh_body else None,
+            timeout=20
+        )
+
+        if 'application/json' in response.headers.get('Content-Type', ''):
+            return jsonify(response.json()), response.status_code
+        else:
+            return response.content, response.status_code, {'Content-Type': response.headers.get('Content-Type')}
+
+    except requests.exceptions.Timeout:
+        return jsonify({"message": "GitHub API timed out."}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({"message": f"Error proxying request to GitHub: {str(e)}"}), 502
+
 # Остальные эндпоинты без изменений...
 RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', 'your-rapidapi-key-here')
 RAPIDAPI_HOST = 'suno-ai-music-generator.p.rapidapi.com'

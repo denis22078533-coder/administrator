@@ -101,7 +101,7 @@ const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean}) => {
 
 export default function LumenApp() {
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub();
+  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
   
   const handleLumenLogin = (password: string): boolean => {
     const regularLoginSuccess = login(password);
@@ -612,7 +612,7 @@ ${content.slice(0, 6000)}
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${encodeURIComponent(branch)}`;
     let res: Response;
     try {
-      res = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } });
+      res = await fetchViaProxy(apiUrl, 'GET', token);
     } catch (e) {
       return { error: `Сетевая ошибка при чтении ${path}: ${String(e)}` };
     }
@@ -792,7 +792,7 @@ ${PROJECT_STRUCTURE}`;
 
   const listDirFromGitHub = async (dirPath: string, token: string, repo: string, branch: string): Promise<string | null> => {
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${dirPath}?ref=${branch}`;
-    const res = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } });
+    const res = await fetchViaProxy(apiUrl, 'GET', token);
     if (!res.ok) return null;
     const data = await res.json() as { name: string; type: string; size: number }[];
     if (!Array.isArray(data)) return null;
@@ -861,7 +861,7 @@ ${PROJECT_STRUCTURE}`;
               if (result.content !== undefined) {
                 const sizeStr = result.content.length < 1024 ? `${result.content.length} байт` : `${(result.content.length / 1024).toFixed(1)} КБ`;
                 const body = result.content.length > 64000 ? result.content.slice(0, 64000) + "\n... [обрезан]" : result.content;
-                filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\``);
+                filesContent.push(`### ${p} (${sizeStr})\n\`\`\`\n${body}\n\`\`\`\n\n`);
               } else {
                 filesContent.push(`### ${p}\n[${result.error}]`);
               }
@@ -886,27 +886,21 @@ ${PROJECT_STRUCTURE}`;
             const apiUrl = `https://api.github.com/repos/${engineRepo}/contents/${encodeURIComponent(actionData.path).replace(/%2F/g, "/")}`;
             let sha = "";
             try {
-              const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(engineBranch)}`, {
-                headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json" },
-              });
+              const getRes = await fetchViaProxy(`${apiUrl}?ref=${encodeURIComponent(engineBranch)}`, 'GET', engineToken);
               if (getRes.ok) sha = (await getRes.json()).sha || "";
             } catch {}
 
             const utf8Bytes = new TextEncoder().encode(actionData.content);
             const contentB64 = btoa(String.fromCharCode(...utf8Bytes));
             
-            const reqBody: Record<string, string> = {
+            const reqBody: Record<string, any> = {
               message: `Муравей: обновил ${actionData.path}`,
               content: contentB64,
               branch: engineBranch,
             };
             if (sha) reqBody.sha = sha;
 
-            const putRes = await fetch(apiUrl, {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${engineToken}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
-              body: JSON.stringify(reqBody),
-            });
+            const putRes = await fetchViaProxy(apiUrl, 'PUT', engineToken, reqBody);
 
             if (putRes.ok) {
                 setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `✅ Файл \`${actionData.path}\` сохранен.` }]);
@@ -1265,6 +1259,12 @@ ${PROJECT_STRUCTURE}`;
           className="h-dvh flex flex-col bg-[#07070c] overflow-hidden"
           style={{ maxWidth: "100vw" }}
         >
+           <button
+              onClick={() => alert("Автопилот Муравья работает успешно!")}
+              className="absolute top-4 right-60 z-50 px-3 py-1.5 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors text-sm"
+            >
+              ТЕСТ
+            </button>
 
           {(activeTab === "chat" || activeTab === "projects" || activeTab === "core") && (
             <LumenTopBar

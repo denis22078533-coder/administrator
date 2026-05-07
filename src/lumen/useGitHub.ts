@@ -37,6 +37,34 @@ export interface FetchResult {
   message?: string;
 }
 
+// Утилита для выполнения запросов через прокси
+async function fetchViaProxy(url: string, method: string, token: string, body?: any): Promise<Response> {
+    const proxyUrl = `/api/github/proxy`; 
+    const authToken = localStorage.getItem("lumen_token");
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+    };
+
+    const payload = {
+        url,
+        method,
+        github_token: token,
+        body: body ? JSON.stringify(body) : null,
+        headers: {
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+        }
+    };
+    
+    return fetch(proxyUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+    });
+}
+
 export function useGitHub(isAdminMode: boolean) {
   const [ghSettings, setGhSettings] = useState<GitHubSettings>(load);
 
@@ -61,9 +89,7 @@ export function useGitHub(isAdminMode: boolean) {
     let currentSha = initialSha;
 
     try {
-      const getRes = await fetch(`${apiUrl}?ref=main`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Cache-Control": "no-cache" },
-      });
+      const getRes = await fetchViaProxy(`${apiUrl}?ref=main`, 'GET', token);
       if (getRes.ok) {
         currentSha = (await getRes.json()).sha;
       }
@@ -80,15 +106,7 @@ export function useGitHub(isAdminMode: boolean) {
       reqBody.sha = currentSha;
     }
 
-    const res = await fetch(apiUrl, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const res = await fetchViaProxy(apiUrl, 'PUT', token, reqBody);
 
     if (res.ok) {
       return { ok: true, message: `Файл ${path} успешно обновлен` };
@@ -133,9 +151,7 @@ export function useGitHub(isAdminMode: boolean) {
 
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=main`;
     try {
-      const res = await fetch(apiUrl, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Cache-Control": "no-cache" },
-      });
+      const res = await fetchViaProxy(apiUrl, 'GET', token);
 
       if (res.status === 404) {
         return { ok: true, html: "", sha: "", filePath: path, message: "Файл не найден. Начните с чистого листа." };
@@ -169,40 +185,42 @@ export function useGitHub(isAdminMode: boolean) {
     }
 
     onProgress?.("Получение списка файлов из репозитория администратора...");
-    const headers = { Authorization: `Bearer ${sourceToken}`, Accept: "application/vnd.github+json" };
 
     try {
-      const treeRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/trees/${branch}?recursive=1`, { headers });
-      if (!treeRes.ok) throw new Error(`Не удалось получить дерево файлов: ${treeRes.statusText}`);
-      
-      const treeData = await treeRes.json();
-      const files = treeData.tree.filter((item: any) => item.type === 'blob' && !item.path.startsWith('.git'));
-
-      onProgress?.(`Найдено ${files.length} файлов. Начало синхронизации...`);
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        onProgress?.(`(${i + 1}/${files.length}) Загрузка ${file.path}...`);
+        const treeUrl = `https://api.github.com/repos/${sourceRepo}/git/trees/${branch}?recursive=1`;
+        const treeRes = await fetchViaProxy(treeUrl, 'GET', sourceToken);
+        if (!treeRes.ok) throw new Error(`Не удалось получить дерево файлов: ${treeRes.statusText}`);
         
-        const blobRes = await fetch(`https://api.github.com/repos/${sourceRepo}/git/blobs/${file.sha}`, { headers });
-        if (!blobRes.ok) throw new Error(`Не удалось загрузить файл ${file.path}`);
-        
-        const blobData = await blobRes.json();
-        const decodedContent = atob(blobData.content);
+        const treeData = await treeRes.json();
+        const files = treeData.tree.filter((item: any) => item.type === 'blob' && !item.path.startsWith('.git'));
 
-        onProgress?.(`(${i + 1}/${files.length}) Сохранение ${file.path} в репозиторий пользователя...`);
-        const pushResult = await privatePush(decodedContent, "", file.path, targetRepo, targetToken, `Синхронизация: ${file.path}`);
+        onProgress?.(`Найдено ${files.length} файлов. Начало синхронизации...`);
 
-        if (!pushResult.ok) {
-          throw new Error(`Не удалось сохранить ${file.path}: ${pushResult.message}`);
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            onProgress?.(`(${i + 1}/${files.length}) Загрузка ${file.path}...`);
+            
+            const blobUrl = `https://api.github.com/repos/${sourceRepo}/git/blobs/${file.sha}`;
+            const blobRes = await fetchViaProxy(blobUrl, 'GET', sourceToken);
+            if (!blobRes.ok) throw new Error(`Не удалось загрузить файл ${file.path}`);
+            
+            const blobData = await blobRes.json();
+            const decodedContent = atob(blobData.content);
+
+            onProgress?.(`(${i + 1}/${files.length}) Сохранение ${file.path} в репозиторий пользователя...`);
+            const pushResult = await privatePush(decodedContent, "", file.path, targetRepo, targetToken, `Синхронизация: ${file.path}`);
+
+            if (!pushResult.ok) {
+                throw new Error(`Не удалось сохранить ${file.path}: ${pushResult.message}`);
+            }
         }
-      }
-      const finalMessage = `Синхронизация успешно завершена. ${files.length} файлов обновлено.`;
-      onProgress?.(finalMessage);
-      return { ok: true, message: finalMessage };
+        const finalMessage = `Синхронизация успешно завершена. ${files.length} файлов обновлено.`;
+        onProgress?.(finalMessage);
+        return { ok: true, message: finalMessage };
     } catch (e: any) {
-      onProgress?.(`Ошибка синхронизации: ${e.message}`);
-      return { ok: false, message: e.message };
+        const errorMessage = `Ошибка синхронизации: ${e.message}`;
+        onProgress?.(errorMessage);
+        return { ok: false, message: errorMessage };
     }
   }, [ghSettings, privatePush]);
 
