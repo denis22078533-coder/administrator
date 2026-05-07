@@ -2,7 +2,9 @@ import Icon from "@/components/ui/icon";
 
 interface AISettings {
   apiKey: string;
-  provider: "openai" | "claude";
+  googleGeminiKey: string;
+  deepseekApiKey: string;
+  provider: "openai" | "claude" | "google" | "deepseek";
   model: string;
   baseUrl: string;
   proxyUrl: string;
@@ -16,7 +18,7 @@ interface Props {
   setShowKey: (v: boolean) => void;
 }
 
-const MODELS = {
+const MODELS: Record<"openai" | "claude" | "google" | "deepseek", string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o3-mini", "o1-mini"],
   claude: [
     "claude-sonnet-4-6",
@@ -26,6 +28,8 @@ const MODELS = {
     "claude-3-5-sonnet-20241022",
     "claude-3-5-haiku-20241022",
   ],
+  google: ["gemini-1.5-pro-latest", "gemini-1.5-flash-latest"],
+  deepseek: ["deepseek-chat", "deepseek-coder"],
 };
 
 const MODEL_LABELS: Record<string, string> = {
@@ -40,9 +44,13 @@ const MODEL_LABELS: Record<string, string> = {
   "claude-haiku-4-5": "Claude Haiku 4.5 — быстрый",
   "claude-3-5-sonnet-20241022": "Claude Sonnet 3.5",
   "claude-3-5-haiku-20241022": "Claude Haiku 3.5",
+  "gemini-1.5-pro-latest": "Gemini 1.5 Pro",
+  "gemini-1.5-flash-latest": "Gemini 1.5 Flash",
+  "deepseek-chat": "DeepSeek Chat (прямой)",
+  "deepseek-coder": "DeepSeek Coder (прямой)",
 };
 
-const MODEL_RECOMMENDED = new Set(["claude-sonnet-4-6", "claude-sonnet-4-5", "gpt-4o"]);
+const MODEL_RECOMMENDED = new Set(["claude-sonnet-4-6", "claude-sonnet-4-5", "gpt-4o", "gemini-1.5-pro-latest"]);
 
 const MASTER_PROMPT = `Ты — профессиональный веб-дизайнер и разработчик с опытом 15+ лет. Твоя специализация — создание красивых, современных коммерческих сайтов для малого и среднего бизнеса.
 
@@ -78,23 +86,33 @@ const MASTER_PROMPT = `Ты — профессиональный веб-диза
 const inp = "w-full h-9 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 text-white/70 text-sm font-mono placeholder:text-white/20 outline-none focus:border-[#9333ea]/40 transition-colors";
 const label = "text-white/40 text-xs font-medium uppercase tracking-wider block mb-2";
 
+const getBaseUrlForProvider = (provider: string) => {
+    switch (provider) {
+        case "openai": return (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai/v1");
+        case "claude": return (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic/v1");
+        case "google": return "https://generativelanguage.googleapis.com/v1beta";
+        case "deepseek": return "https://api.deepseek.com/v1";
+        default: return "";
+    }
+}
+
 export default function AITab({ form, setForm, showKey, setShowKey }: Props) {
   return (
     <>
       <div>
         <label className={label}>Провайдер ИИ</label>
         <div className="grid grid-cols-2 gap-2">
-          {(["openai", "claude"] as const).map((p) => (
+          {(["openai", "claude", "google", "deepseek"] as const).map((p) => (
             <button
               key={p}
-              onClick={() => setForm(f => ({ ...f, provider: p, model: MODELS[p][0], baseUrl: p === "openai" ? (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai") : (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic") }))}
-              className={`h-9 rounded-lg border text-sm font-medium transition-all ${
+              onClick={() => setForm(f => ({ ...f, provider: p, model: MODELS[p][0], baseUrl: getBaseUrlForProvider(p) }))}
+              className={`h-9 rounded-lg border text-sm font-medium transition-all capitalize ${
                 form.provider === p
                   ? "border-[#9333ea]/50 bg-[#9333ea]/10 text-purple-300"
                   : "border-white/[0.08] bg-white/[0.03] text-white/40 hover:text-white/70 hover:border-white/20"
               }`}
             >
-              {p === "openai" ? "OpenAI" : "Claude"}
+              {p}
             </button>
           ))}
         </div>
@@ -129,7 +147,7 @@ export default function AITab({ form, setForm, showKey, setShowKey }: Props) {
       </div>
 
       <div>
-        <label className={label}>API Ключ</label>
+        <label className={label}>API Ключ (OpenAI/Claude)</label>
         <div className="relative">
           <input
             type={showKey ? "text" : "password"}
@@ -142,13 +160,47 @@ export default function AITab({ form, setForm, showKey, setShowKey }: Props) {
             <Icon name={showKey ? "EyeOff" : "Eye"} size={14} />
           </button>
         </div>
-        <p className="text-white/20 text-xs mt-1.5">Хранится только в браузере.</p>
+        <p className="text-white/20 text-xs mt-1.5">Для OpenAI и Claude. Хранится только в браузере.</p>
+      </div>
+
+      <div>
+        <label className={label}>Google Gemini Key (бесплатный)</label>
+        <div className="relative">
+          <input
+            type={showKey ? "text" : "password"}
+            value={form.googleGeminiKey}
+            onChange={e => setForm(f => ({ ...f, googleGeminiKey: e.target.value }))}
+            placeholder="AIza..."
+            className={inp + " pr-10"}
+          />
+          <button onClick={() => setShowKey(!showKey)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors">
+            <Icon name={showKey ? "EyeOff" : "Eye"} size={14} />
+          </button>
+        </div>
+        <p className="text-white/20 text-xs mt-1.5">Для Google Gemini. Хранится только в браузере.</p>
+      </div>
+
+      <div>
+        <label className={label}>DeepSeek API Key (прямой)</label>
+        <div className="relative">
+          <input
+            type={showKey ? "text" : "password"}
+            value={form.deepseekApiKey}
+            onChange={e => setForm(f => ({ ...f, deepseekApiKey: e.target.value }))}
+            placeholder="sk-..."
+            className={inp + " pr-10"}
+          />
+          <button onClick={() => setShowKey(!showKey)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors">
+            <Icon name={showKey ? "EyeOff" : "Eye"} size={14} />
+          </button>
+        </div>
+        <p className="text-white/20 text-xs mt-1.5">Для DeepSeek. Хранится только в браузере.</p>
       </div>
 
       <div>
         <label className={label}>Base URL</label>
         <input type="text" value={form.baseUrl} onChange={e => setForm(f => ({ ...f, baseUrl: e.target.value.trim() }))} placeholder="https://api.proxyapi.ru/openai" className={inp} />
-        <p className="text-white/20 text-xs mt-1.5">ProxyAPI (РФ): https://api.proxyapi.ru/openai | OpenAI напрямую: https://api.openai.com</p>
+        <p className="text-white/20 text-xs mt-1.5">Меняется автоматически при смене провайдера.</p>
       </div>
 
       <div>

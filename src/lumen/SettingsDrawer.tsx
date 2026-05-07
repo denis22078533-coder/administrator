@@ -9,7 +9,9 @@ import AdminTab from "./settings/AdminTab";
 
 interface AISettings {
   apiKey: string;
-  provider: "openai" | "claude";
+  googleGeminiKey: string;
+  deepseekApiKey: string;
+  provider: "openai" | "claude" | "google" | "deepseek";
   model: string;
   baseUrl: string;
   proxyUrl: string;

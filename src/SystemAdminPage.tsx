@@ -7,7 +7,9 @@ import { useGitHub } from './lumen/useGitHub';
 // This is a placeholder for the settings data structure
 interface Settings {
   apiKey: string;
-  provider: "openai" | "claude";
+  googleGeminiKey: string;
+  deepseekApiKey: string;
+  provider: "openai" | "claude" | "google" | "deepseek";
   model: string;
   baseUrl: string;
   proxyUrl: string;
@@ -16,6 +18,8 @@ interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
     apiKey: "",
+    googleGeminiKey: "",
+    deepseekApiKey: "",
     provider: "openai",
     model: "gpt-4o-mini",
     baseUrl: "https://api.proxyapi.ru/openai/v1",
