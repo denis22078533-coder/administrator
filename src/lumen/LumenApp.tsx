@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS: Settings = {
   model: "gpt-4o-mini",
   baseUrl: import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai/v1",
   proxyUrl: "",
-  customPrompt: "",
+  customPrompt: ""
 };
 
 let msgCounter = 0;
@@ -257,7 +257,7 @@ export default function LumenApp() {
         });
         await Promise.all(assetPromises);
 
-        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)['"][^>]*\/?>/gi, (match, href) => {
+        let inlinedHtml = foundHtml.replace(/<link[^>]+rel=['"]stylesheet['"][^>]*href=['"]([^'"]+)[''][^>]*\/?>/gi, (match, href) => {
           const normalized = href.startsWith("/") ? href.slice(1) : href;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -270,7 +270,7 @@ export default function LumenApp() {
           return match;
         });
 
-        inlinedHtml = inlinedHtml.replace(/<script([^>]+)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]*)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -396,13 +396,13 @@ export default function LumenApp() {
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     if (/<base\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href="${base}">`);
+      return html.replace(/<base\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href=\"${base}\">`);
     }
     if (/<head>/i.test(html)) {
-      return html.replace(/<head>/i, `<head>\n  <base href="${base}">`);
+      return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\">`);
     }
     if (/<html[^>]*>/i.test(html)) {
-      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href="${base}"></head>`);
+      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href=\"${base}\"></head>`);
     }
     return html;
   };
