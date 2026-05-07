@@ -145,3 +145,4 @@ export function useApiAuth() {
 
   return { user, token, isLoading, authError, login, register, logout, clearError, isTester, toggleTesterMode, resetBalance, displayBalance };
 }
+
