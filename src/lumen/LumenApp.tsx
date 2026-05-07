@@ -199,6 +199,141 @@ export default function LumenApp() {
     }
   }, []);
 
+  const buildChatHistory = (currentUserText: string, maxPairs = 25): { role: string; content: string }[] => {
+    const history: { role: string; content: string }[] = [];
+    const recent = messages.slice(-maxPairs * 2);
+    for (const msg of recent) {
+      if (msg.html?.startsWith("__IMAGE__:")) continue;
+      if (msg.track) continue;
+      const content = msg.html
+        ? msg.html.length > 64000 ? msg.text + "\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
+        : msg.text;
+      history.push({ role: msg.role === "user" ? "user" : "assistant", content });
+    }
+    history.push({ role: "user", content: currentUserText });
+    return history;
+  };
+
+  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 300000): Promise<string> => {
+    const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
+    const isOpenAI = settings.provider === "openai";
+
+    const chatMessages = useHistory
+      ? buildChatHistory(userText)
+      : [{ role: "user", content: userText }];
+
+    const maxTokens = 16000;
+
+    const PROXYAPI_HOSTS = new Set(["proxyapi.ru", "www.proxyapi.ru", "api.proxyapi.ru"]);
+
+    let endpoint: string;
+    let reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    let requestBody: Record<string, unknown>;
+
+    if (isOpenAI) {
+      const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+      if (PROXYAPI_HOSTS.has(parsedHost)) {
+        endpoint = "https://api.proxyapi.ru/openai/v1/chat/completions";
+      } else if (base.endsWith("/chat/completions")) {
+        endpoint = base;
+      } else if (base.endsWith("/v1")) {
+        endpoint = base + "/chat/completions";
+      } else {
+        endpoint = base + "/v1/chat/completions";
+      }
+      reqHeaders["Authorization"] = `Bearer ${settings.apiKey.trim()}`;
+      requestBody = {
+        model: settings.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...chatMessages,
+        ],
+        max_tokens: maxTokens,
+      };
+    } else {
+      const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
+      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+      if (PROXYAPI_HOSTS.has(parsedHost)) {
+        endpoint = "https://api.proxyapi.ru/anthropic/v1/messages";
+      } else if (base.endsWith("/messages")) {
+        endpoint = base;
+      } else if (base.endsWith("/v1")) {
+        endpoint = base + "/messages";
+      } else {
+        endpoint = base + "/v1/messages";
+      }
+      reqHeaders["x-api-key"] = settings.apiKey.trim();
+      reqHeaders["anthropic-version"] = "2023-06-01";
+      requestBody = {
+        model: settings.model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: chatMessages,
+      };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: reqHeaders,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if ((e as Error)?.name === "AbortError") {
+        throw new Error(`Превышено время ожидания (${timeoutMs / 1000} сек). Попробуйте ещё раз или упростите запрос.`);
+      }
+      throw new Error(`Сетевая ошибка: ${String(e)}`);
+    }
+
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    let rawText = "";
+    if (reader) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          rawText += decoder.decode(value, { stream: true });
+          if (onProgress) onProgress(rawText.length);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        reader.releaseLock();
+      }
+    } else {
+      rawText = await res.text();
+      clearTimeout(timeoutId);
+    }
+
+    let data: Record<string, unknown>;
+    try { data = JSON.parse(rawText); } catch {
+      throw new Error(`Сервер вернул не JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
+    }
+
+    if (!res.ok || data.error) {
+      const errMsg = data.error as { message?: string } | string | undefined;
+      const detail = typeof errMsg === "string" ? errMsg : errMsg?.message;
+      throw new Error(`HTTP ${res.status}: ${detail || rawText.slice(0, 300)}`);
+    }
+
+    if (isOpenAI) {
+      const content = (data.choices as { message: { content: string } }[])?.[0]?.message?.content ?? "";
+      if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
+      return content;
+    } else {
+      const content = (data.content as { text: string }[])?.[0]?.text ?? "";
+      if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
+      return content;
+    }
+  };
+
   const handleLoadZip = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -407,141 +542,6 @@ export default function LumenApp() {
     return html;
   };
 
-  const buildChatHistory = (currentUserText: string, maxPairs = 25): { role: string; content: string }[] => {
-    const history: { role: string; content: string }[] = [];
-    const recent = messages.slice(-maxPairs * 2);
-    for (const msg of recent) {
-      if (msg.html?.startsWith("__IMAGE__:")) continue;
-      if (msg.track) continue;
-      const content = msg.html
-        ? msg.html.length > 64000 ? msg.text + "\n[предыдущий HTML-код сайта обрезан для экономии токенов]" : `<boltArtifact>${msg.html}</boltArtifact>`
-        : msg.text;
-      history.push({ role: msg.role === "user" ? "user" : "assistant", content });
-    }
-    history.push({ role: "user", content: currentUserText });
-    return history;
-  };
-
-  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 300000): Promise<string> => {
-    const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
-    const isOpenAI = settings.provider === "openai";
-
-    const chatMessages = useHistory
-      ? buildChatHistory(userText)
-      : [{ role: "user", content: userText }];
-
-    const maxTokens = 16000;
-
-    const PROXYAPI_HOSTS = new Set(["proxyapi.ru", "www.proxyapi.ru", "api.proxyapi.ru"]);
-
-    let endpoint: string;
-    let reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    let requestBody: Record<string, unknown>;
-
-    if (isOpenAI) {
-      const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
-      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
-      if (PROXYAPI_HOSTS.has(parsedHost)) {
-        endpoint = "https://api.proxyapi.ru/openai/v1/chat/completions";
-      } else if (base.endsWith("/chat/completions")) {
-        endpoint = base;
-      } else if (base.endsWith("/v1")) {
-        endpoint = base + "/chat/completions";
-      } else {
-        endpoint = base + "/v1/chat/completions";
-      }
-      reqHeaders["Authorization"] = `Bearer ${settings.apiKey.trim()}`;
-      requestBody = {
-        model: settings.model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...chatMessages,
-        ],
-        max_tokens: maxTokens,
-      };
-    } else {
-      const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
-      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
-      if (PROXYAPI_HOSTS.has(parsedHost)) {
-        endpoint = "https://api.proxyapi.ru/anthropic/v1/messages";
-      } else if (base.endsWith("/messages")) {
-        endpoint = base;
-      } else if (base.endsWith("/v1")) {
-        endpoint = base + "/messages";
-      } else {
-        endpoint = base + "/v1/messages";
-      }
-      reqHeaders["x-api-key"] = settings.apiKey.trim();
-      reqHeaders["anthropic-version"] = "2023-06-01";
-      requestBody = {
-        model: settings.model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: chatMessages,
-      };
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    let res: Response;
-    try {
-      res = await fetch(endpoint, {
-        method: "POST",
-        headers: reqHeaders,
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(timeoutId);
-      if ((e as Error)?.name === "AbortError") {
-        throw new Error(`Превышено время ожидания (${timeoutMs / 1000} сек). Попробуйте ещё раз или упростите запрос.`);
-      }
-      throw new Error(`Сетевая ошибка: ${String(e)}`);
-    }
-
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-    let rawText = "";
-    if (reader) {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          rawText += decoder.decode(value, { stream: true });
-          if (onProgress) onProgress(rawText.length);
-        }
-      } finally {
-        clearTimeout(timeoutId);
-        reader.releaseLock();
-      }
-    } else {
-      rawText = await res.text();
-      clearTimeout(timeoutId);
-    }
-
-    let data: Record<string, unknown>;
-    try { data = JSON.parse(rawText); } catch {
-      throw new Error(`Сервер вернул не JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
-    }
-
-    if (!res.ok || data.error) {
-      const errMsg = data.error as { message?: string } | string | undefined;
-      const detail = typeof errMsg === "string" ? errMsg : errMsg?.message;
-      throw new Error(`HTTP ${res.status}: ${detail || rawText.slice(0, 300)}`);
-    }
-
-    if (isOpenAI) {
-      const content = (data.choices as { message: { content: string } }[])?.[0]?.message?.content ?? "";
-      if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
-      return content;
-    } else {
-      const content = (data.content as { text: string }[])?.[0]?.text ?? "";
-      if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
-      return content;
-    }
-  };
-
   const IMAGE_GENERATE_URL = import.meta.env.VITE_IMAGE_GENERATE_URL || "";
 
   const handleSendImage = useCallback(async (text: string) => {
@@ -605,48 +605,8 @@ export default function LumenApp() {
       setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
     }
   }, []);
-
-  const handleSendChat = useCallback(async (text: string, mode: ChatMode = "site") => {
-    abortRef.current = false;
-    
-    const userMsg: Message = { id: ++msgCounter, role: "user", text };
-    setMessages(prev => [...prev, userMsg]);
-    setDeployResult(null);
-    setPendingSql(null);
-
-    if (mode === "music") { 
-      await handleSendMusic(text);
-      return;
-    }
-
-    if (mode === "chat") {
-      if (selfEditMode && adminMode) {
-        await handleSelfEditChat(text);
-        return;
-      }
-      const isSqlRequest = /создай таблиц|добавь колонк|измени схему|миграци|sql|create table|alter table|добавь поле|удали колонк|индекс|foreign key|база данных.*изменить|изменить.*базу/i.test(text);
-      if (isSqlRequest) {
-        await handleSqlRequest(text);
-      } else {
-        // Fallback to regular chat if not in self-edit mode
-        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "Обычный чат пока не реализован." }]);
-      }
-      return;
-    }
-
-    if (mode === "image") {
-      await handleSendImage(text);
-      return;
-    }
-    
-    // ... Existing site creation logic ...
-  }, [settings, ghSettings, selfEditMode, adminMode, messages, handleSelfEditChat, handleSqlRequest, handleSendMusic, handleSendImage]);
   
   const [pendingSql, setPendingSql] = useState<{ sql: string; explanation: string } | null>(null);
-
-  const handleSqlRequest = useCallback(async (text: string) => {
-    // ... (implementation unchanged)
-  }, [settings, messages]);
 
   // --- SELF-EDIT LOGIC ---
   const readLocalFile = async (path: string): Promise<{ content: string; error?: never } | { content?: never; error: string }> => {
@@ -696,7 +656,7 @@ export default function LumenApp() {
           return { ok: false, message: `Сетевая ошибка при записи файла ${path}: ${String(e)}` };
       }
   };
-  
+
   const handleSelfEditChat = useCallback(async (text: string) => {
     if (!adminMode || !selfEditMode) {
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "Режим Self-Edit доступен только администраторам." }]);
@@ -827,6 +787,47 @@ export default function LumenApp() {
     }
 }, [settings, adminMode, selfEditMode, messages, pushToGitHub]);
 
+
+  const handleSqlRequest = useCallback(async (text: string) => {
+    // ... (implementation unchanged)
+  }, [settings, messages]);
+
+  const handleSendChat = useCallback(async (text: string, mode: ChatMode = "site") => {
+    abortRef.current = false;
+    
+    const userMsg: Message = { id: ++msgCounter, role: "user", text };
+    setMessages(prev => [...prev, userMsg]);
+    setDeployResult(null);
+    setPendingSql(null);
+
+    if (mode === "music") { 
+      await handleSendMusic(text);
+      return;
+    }
+
+    if (mode === "chat") {
+      if (selfEditMode && adminMode) {
+        await handleSelfEditChat(text);
+        return;
+      }
+      const isSqlRequest = /создай таблиц|добавь колонк|измени схему|миграци|sql|create table|alter table|добавь поле|удали колонк|индекс|foreign key|база данных.*изменить|изменить.*базу/i.test(text);
+      if (isSqlRequest) {
+        await handleSqlRequest(text);
+      } else {
+        // Fallback to regular chat if not in self-edit mode
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "Обычный чат пока не реализован." }]);
+      }
+      return;
+    }
+
+    if (mode === "image") {
+      await handleSendImage(text);
+      return;
+    }
+    
+    // ... Existing site creation logic ...
+  }, [settings, ghSettings, selfEditMode, adminMode, messages, handleSelfEditChat, handleSqlRequest, handleSendMusic, handleSendImage]);
+  
   const handleNewMessage = (message: Message) => {
     setMessages(prev => [...prev, message]);
   };
