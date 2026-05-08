@@ -1138,7 +1138,7 @@ export default function LumenApp() {
               onClick={() => alert("Автопилот Муравья работает успешно!")}
               className="absolute top-4 right-60 z-50 px-3 py-1.5 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors text-sm"
             >
-              ТЕСТ
+              ТЕСТ 2
             </button>
 
           {(activeTab === "chat" || activeTab === "projects" || activeTab === "core") && (
