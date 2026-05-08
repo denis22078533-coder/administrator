@@ -83,6 +83,29 @@ const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean }) => {
   );
 };
 
+const injectLightTheme = (html: string): string => {
+    const forceCss = `<style data-lumen-fix>\n      html,body{background:#ffffff!important;color:#111111!important;}\n    </style>`;
+    if (html.toLowerCase().includes("</head>")) {
+      return html.replace(/<\/head>/i, `${forceCss}</head>`);
+    }
+    if (html.toLowerCase().includes("<body")) {
+      return html.replace(/<body([^>]*)>/i, `<head>${forceCss}</head><body$1>`);
+    }
+    return forceCss + html;
+};
+
+const injectBaseHref = (html: string, baseUrl: string): string => {
+    if (!baseUrl) return html;
+    const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+    if (/<base\s[^>]*href/i.test(html)) {
+      return html.replace(/<base\s[^>]*href=['"][^'"]*[''][^>]*>/i, `<base href=\"${base}\"/>`);
+    }
+    if (/<head>/i.test(html)) {
+      return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\"/>`);
+    }
+    return html;
+};
+
 export default function LumenApp() {
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
   const { ghSettings, fetchFromGitHub, pushToGitHub, currentFile, setCurrentFile } = useGitHub(adminMode);
@@ -93,6 +116,7 @@ export default function LumenApp() {
   const [fullCodeContext, setFullCodeContext] = useState<{ html: string; fileName: string } | null>(null);
   const [showRebuildBanner, setShowRebuildBanner] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("home");
+  const [loadingFromGitHub, setLoadingFromGitHub] = useState(false);
 
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -116,7 +140,6 @@ export default function LumenApp() {
       try { localStorage.setItem("lumen_self_edit", "0"); } catch {}
     }
   }, [adminMode]);
-
 
   const liveUrl = (() => {
     if (ghSettings.siteUrl?.trim()) {
@@ -169,6 +192,39 @@ export default function LumenApp() {
     });
   };
 
+  const handleLoadFromGitHub = useCallback(async () => {
+    if (!ghSettings.token || !ghSettings.repo) {
+        setMessages(prev => [...prev, { id: Date.now(), role: "assistant", text: "GitHub-репозиторий не настроен." }]);
+        return;
+    }
+    setLoadingFromGitHub(true);
+    const fetched = await fetchFromGitHub();
+    setLoadingFromGitHub(false);
+
+    if (fetched.ok && fetched.html) {
+        setCurrentFile(fetched);
+        const themedHtml = injectLightTheme(fetched.html);
+        const finalHtml = liveUrl ? injectBaseHref(themedHtml, liveUrl) : themedHtml;
+        savePreviewHtml(finalHtml);
+        setMobileTab("preview");
+        setMessages([{
+            id: Date.now(),
+            role: "assistant",
+            text: `Загружен проект «${fetched.filePath}» из репозитория ${ghSettings.repo}. Опишите, что нужно изменить.`,
+        }]);
+    } else {
+         setMessages(prev => [...prev, { id: Date.now(), role: "assistant", text: `Не удалось загрузить файл: ${fetched.message}` }]);
+    }
+}, [ghSettings, fetchFromGitHub, liveUrl, setMessages, setCurrentFile, savePreviewHtml, setMobileTab]);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('lumen_load_after_project_select') === 'true') {
+        sessionStorage.removeItem('lumen_load_after_project_select');
+        setActiveTab('chat');
+        setTimeout(() => handleLoadFromGitHub(), 100);
+    }
+  }, [handleLoadFromGitHub]);
+
   const handleSelectTemplate = useCallback((prompt: string) => {
     setActiveTab("chat");
     setMessages([]);
@@ -176,7 +232,42 @@ export default function LumenApp() {
     handleSend(prompt, "site");
   }, [handleSend, setMessages, savePreviewHtml]);
 
-  // ... Other handlers like handleLoadLocalFile, handleLoadFromGitHub, etc.
+  const handleSelectManagedProject = useCallback((project: { repo: string; siteUrl: string; }) => {
+    try {
+        const saved = localStorage.getItem("lumen_gh_settings");
+        const settings = saved ? JSON.parse(saved) : {};
+        
+        const newSettings = {
+            ...settings,
+            repo: project.repo,
+            siteUrl: project.siteUrl,
+            filePath: "index.html",
+        };
+
+        localStorage.setItem("lumen_gh_settings", JSON.stringify(newSettings));
+        sessionStorage.setItem('lumen_load_after_project_select', 'true');
+        window.location.reload();
+    } catch (e) {
+        console.error("Failed to switch project", e);
+    }
+  }, []);
+
+  const handleApplyToGitHub = useCallback(async () => {
+    if (!ghSettings.token || !ghSettings.repo) {
+        throw new Error("GitHub не настроен.");
+    }
+    if (!previewHtml) throw new Error("Нет кода для сохранения.");
+    if (!currentFile) throw new Error("Файл не загружен из GitHub");
+    
+    const result = await pushToGitHub(previewHtml, currentFile.sha, currentFile.filePath);
+    if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
+    
+    // After successful push, fetch the latest version to update SHA
+    const freshFile = await fetchFromGitHub();
+    if (freshFile.ok) {
+        setCurrentFile(freshFile);
+    }
+  }, [ghSettings, previewHtml, currentFile, pushToGitHub, fetchFromGitHub, setCurrentFile]);
 
   const topStatus = cycleStatus === "reading" ? "generating" : cycleStatus;
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";
@@ -209,8 +300,6 @@ export default function LumenApp() {
             />
           )}
           
-          {/* Inputs for file loading would be here */}
-
           <div className="flex-1 min-h-0 overflow-hidden relative">
             <AnimatePresence mode="wait">
               {activeTab === "home" && (
@@ -225,7 +314,6 @@ export default function LumenApp() {
               )}
               {activeTab === "chat" && (
                 <motion.div key="chat" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0 flex flex-col">
-                  {/* Banners for rebuild and local file context would be here */}
                   <div className="md:hidden flex shrink-0 border-b border-white/[0.06] bg-[#0a0a0f]">
                     <button onClick={() => setMobileTab("chat")} className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${mobileTab === "chat" ? "text-[#f59e0b] border-b-2 border-[#f59e0b]" : "text-white/40 border-b-2 border-transparent"}`}><Icon name="MessageCircle" size={14} /> Чат</button>
                     <button onClick={() => setMobileTab("preview")} className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${mobileTab === "preview" ? "text-[#f59e0b] border-b-2 border-[#f59e0b]" : "text-white/40 border-b-2 border-transparent"}`}><Icon name="Globe" size={14} /> Сайт</button>
@@ -244,8 +332,8 @@ export default function LumenApp() {
                           deployResult={deployResult}
                           liveUrl={liveUrl}
                           onOpenPreview={() => setMobileTab("preview")}
-                          onLoadFromGitHub={() => {}}
-                          loadingFromGitHub={false}
+                          onLoadFromGitHub={handleLoadFromGitHub}
+                          loadingFromGitHub={loadingFromGitHub}
                           currentFilePath={currentFile?.filePath || ghSettings.filePath || "index.html"}
                           onLoadLocalFile={() => {}}
                           hasLocalFile={!!fullCodeContext}
@@ -266,6 +354,7 @@ export default function LumenApp() {
                         status={topStatus}
                         previewHtml={previewHtml}
                         liveUrl={liveUrl}
+                        onApplyToGitHub={ghSettings.token && ghSettings.repo ? handleApplyToGitHub : undefined}
                         onUndo={htmlHistory.length > 0 ? handleUndo : undefined}
                         canUndo={htmlHistory.length > 0}
                       />
@@ -276,10 +365,9 @@ export default function LumenApp() {
               )}
               {activeTab === "projects" && (
                   <motion.div key="projects" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <ProjectsPage onGoToChat={() => setActiveTab("chat")} onSelectTemplate={handleSelectTemplate}/>
+                    <ProjectsPage onGoToChat={() => setActiveTab("chat")} onSelectTemplate={handleSelectTemplate} onSelectManagedProject={handleSelectManagedProject} />
                   </motion.div>
               )}
-              {/* Profile Tab would be here */}
             </AnimatePresence>
           </div>
 

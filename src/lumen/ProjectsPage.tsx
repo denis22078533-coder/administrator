@@ -3,23 +3,22 @@ import { motion } from 'framer-motion';
 import Icon from '@/components/ui/icon';
 
 interface ProjectsPageProps {
-  // Функция для перехода в чат с готовым запросом
   onSelectTemplate: (prompt: string) => void;
-  // Функция для перехода в чат с пустым полем
   onGoToChat: () => void;
+  onSelectManagedProject: (project: { repo: string; siteUrl: string; }) => void;
 }
 
-// Определяем структуру данных для шаблона
-interface TemplateData {
+interface ProjectCardData {
   title: string;
   subtitle: string;
   image: string;
-  prompt: string; // Запрос для ИИ
   large?: boolean;
+  prompt?: string;
+  repo?: string;
+  siteUrl?: string;
 }
 
-// Компонент карточки. Теперь он принимает onClick.
-const TemplateCard = ({ image, title, subtitle, large = false, onClick }: TemplateData & { onClick: () => void }) => (
+const ProjectCard = ({ image, title, subtitle, large = false, onClick }: { image: string, title: string, subtitle: string, large?: boolean, onClick: () => void }) => (
   <div 
     onClick={onClick}
     className={`relative w-full rounded-2xl overflow-hidden group cursor-pointer border border-white/[0.08] hover:border-white/20 transition-all ${large ? 'col-span-1 md:col-span-2 lg:col-span-3 aspect-video' : 'aspect-[4/3]'}`}
@@ -38,8 +37,18 @@ const TemplateCard = ({ image, title, subtitle, large = false, onClick }: Templa
   </div>
 );
 
-// Массив с данными шаблонов
-const templates: TemplateData[] = [
+const managedProjects: ProjectCardData[] = [
+    {
+        title: "Магазин Продуктов",
+        subtitle: "denis22078533-coder/muravey",
+        image: "https://images.unsplash.com/photo-1608686207856-001b95cf60ca?q=80&w=2128&auto=format&fit=crop",
+        repo: "denis22078533-coder/muravey",
+        siteUrl: "https://denis22078533-coder.github.io/muravey/",
+        large: true,
+    }
+];
+
+const templates: ProjectCardData[] = [
   {
     large: true,
     title: "Магазин одежды",
@@ -67,7 +76,7 @@ const templates: TemplateData[] = [
   },
 ];
 
-const ProjectsPage = ({ onSelectTemplate, onGoToChat }: ProjectsPageProps) => {
+const ProjectsPage = ({ onSelectTemplate, onGoToChat, onSelectManagedProject }: ProjectsPageProps) => {
 
   return (
     <motion.div 
@@ -79,7 +88,7 @@ const ProjectsPage = ({ onSelectTemplate, onGoToChat }: ProjectsPageProps) => {
     >
       <div className="mb-6 px-1">
         <h1 className="text-2xl font-bold text-white">Проекты</h1>
-        <p className="text-white/40 text-sm">Начните с шаблона или чистого листа.</p>
+        <p className="text-white/40 text-sm">Начните с готового проекта, шаблона или чистого листа.</p>
       </div>
 
       <div 
@@ -97,14 +106,27 @@ const ProjectsPage = ({ onSelectTemplate, onGoToChat }: ProjectsPageProps) => {
       </div>
       
       <div className="px-1 mb-4">
+        <h2 className="text-xl font-bold text-white">Готовые проекты</h2>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+        {managedProjects.map((project) => (
+          <ProjectCard 
+            key={project.title}
+            {...project}
+            onClick={() => onSelectManagedProject({ repo: project.repo!, siteUrl: project.siteUrl! })}
+          />
+        ))}
+      </div>
+
+      <div className="px-1 mb-4">
         <h2 className="text-xl font-bold text-white">Начать с шаблона</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {templates.map((template) => (
-          <TemplateCard 
+          <ProjectCard 
             key={template.title}
             {...template}
-            onClick={() => onSelectTemplate(template.prompt)}
+            onClick={() => onSelectTemplate(template.prompt!)}
           />
         ))}
       </div>
