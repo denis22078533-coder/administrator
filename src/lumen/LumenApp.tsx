@@ -1006,7 +1006,7 @@ export default function LumenApp() {
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
       }
     }
-  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, handleSendMusic, adminMode]);
+  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, handleSendMusic, adminMode, messages]);
 
   const handleSelectTemplate = useCallback((prompt: string) => {
     setActiveTab("chat");
@@ -1174,7 +1174,7 @@ export default function LumenApp() {
               isAdmin={adminMode}
               onSettings={() => window.location.href = '/system-admin'} // Navigate to admin page
               onLogout={handleLogout}
-              balance={"oo"}
+              balance={"Безлимит"}
             />
           )}
 
@@ -1269,16 +1269,17 @@ export default function LumenApp() {
                           mobileTab === tab ? "text-[#f59e0b] border-b-2 border-[#f59e0b]" : "text-white/40 border-b-2 border-transparent"
                         }`}
                       >
-                        {tab === "chat" ? <><span>?</span> Чат</> : <><span>??</span> Сайт</>}
+                        {tab === "chat" ? <><Icon name="MessageCircle" size={14} /> Чат</> : <><Icon name="Globe" size={14} /> Сайт</>}
                       </button>
                     ))}
                   </div>
 
                   <div className="flex-1 min-h-0 overflow-hidden relative md:flex md:gap-2 md:p-2">
-                    <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>\n                      {!publicAiEnabled ? (
+                    <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>
+                      {!publicAiEnabled ? (
                         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                           <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-3xl">
-                            ?
+                            <Icon name="Bot" />
                           </div>
                           <div>
                             <h3 className="text-white/70 font-semibold text-base mb-1">Муравей временно спит</h3>
@@ -1359,7 +1360,7 @@ export default function LumenApp() {
                 >
                   <div className="px-4 py-6 flex flex-col items-center gap-3 border-b border-white/[0.06]">
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center text-4xl shadow-[0_0_30px_#f59e0b40]">
-                      ?
+                      <Icon name="User" />
                     </div>
                     <div className="text-center">
                       <h2 className="text-white font-bold text-lg">Пользователь</h2>
@@ -1369,7 +1370,7 @@ export default function LumenApp() {
                   <div className="px-4 py-4 flex flex-col gap-2">
                       <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border bg-[#f59e0b]/[0.05] border-[#f59e0b]/20`}>
                         <div className="flex items-center gap-3">
-                          <span className="text-xl">?</span>
+                          <span className="text-xl"><Icon name="Infinity" /></span>
                           <div>
                             <div className="text-white/80 text-sm font-medium">Запросы к Муравью</div>
                             <div className={`text-xs text-[#f59e0b]/70`}>
@@ -1380,7 +1381,7 @@ export default function LumenApp() {
                       </div>
                     {adminMode && (
                       <button onClick={() => window.location.href = '/system-admin'} className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.04] border border-white/[0.07] rounded-xl text-left hover:bg-white/[0.07] transition-all">
-                        <span className="text-xl">??</span>
+                        <span className="text-xl"><Icon name="Shield" /></span>
                         <div>
                           <div className="text-white/80 text-sm font-medium">Панель Администратора</div>
                           <div className="text-white/30 text-xs">Управление системой</div>
@@ -1389,7 +1390,7 @@ export default function LumenApp() {
                       </button>
                     )}
                     <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3.5 bg-red-500/[0.05] border border-red-500/20 rounded-xl text-left hover:bg-red-500/[0.10] transition-all">
-                        <span className="text-xl">??</span>
+                        <span className="text-xl"><Icon name="LogOut" /></span>
                         <div>
                           <div className="text-red-400 text-sm font-medium">Выйти</div>
                           <div className="text-white/30 text-xs">Завершить сессию</div>
