@@ -405,7 +405,7 @@ export default function LumenApp() {
           return match;
         });
 
-        inlinedHtml = inlinedHtml.replace(/<script([^>]*)src=['"]([^'"]+)['"]([^>]*)><\/script>/gi, (match, pre, src, post) => {
+        inlinedHtml = inlinedHtml.replace(/<script([^>]*)src=['"]([^'"]+)['']([^>]*)><\/script>/gi, (match, pre, src, post) => {
           const normalized = src.startsWith("/") ? src.slice(1) : src;
 					const lastSlash = normalized.lastIndexOf("/");
 					const fileName = lastSlash === -1 ? normalized : normalized.slice(lastSlash + 1);
@@ -413,7 +413,7 @@ export default function LumenApp() {
             : zipAssets[normalized] !== undefined ? normalized
             : Object.keys(zipAssets).find(k => k.endsWith(fileName));
           if (key && zipAssets[key]) {
-            const attrs = (pre + post).replace(/\s*src=['"][^'"]*['"]/gi, "").replace(/\s*type=['"]module['"]/gi, "");
+            const attrs = (pre + post).replace(/\s*src=['"][^'"]*['']/gi, "").replace(/\s*type=['"]module['']/gi, "");
             return `<script${attrs}>${zipAssets[key]}</script>`;
           }
           return match;
@@ -531,13 +531,13 @@ export default function LumenApp() {
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     if (/<base\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\s[^>]*href=['"][^'"]*['"][^>]*>/i, `<base href=\"${base}\">`);
+      return html.replace(/<base\s[^>]*href=['"][^'"]*[''][^>]*>/i, `<base href=\"${base}\"/>`);
     }
     if (/<head>/i.test(html)) {
-      return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\">`);
+      return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\"/>`);
     }
     if (/<html[^>]*>/i.test(html)) {
-      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href=\"${base}\"></head>`);
+      return html.replace(/(<html[^>]*>)/i, `$1\n<head><base href=\"${base}\"/></head>`);
     }
     return html;
   };
@@ -1174,7 +1174,7 @@ export default function LumenApp() {
               isAdmin={adminMode}
               onSettings={() => window.location.href = '/system-admin'} // Navigate to admin page
               onLogout={handleLogout}
-              balance={"Безлимит"}
+              balance={"oo"}
             />
           )}
 
