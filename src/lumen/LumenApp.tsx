@@ -1223,7 +1223,7 @@ export default function LumenApp() {
                   transition={{ duration: 0.25 }}
                   className="absolute inset-0"
                 >
-                  <CoreDashboard onOpenSettings={() => window.location.href = '/system-admin'} />
+                  <CoreDashboard onOpenSettings={() => window.location.href = '/system-admin'} onPublish={() => alert('Публикация (в разработке)')} />
                 </motion.div>
               )}
 
