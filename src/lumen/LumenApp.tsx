@@ -7,7 +7,7 @@ import LivePreview from "./LivePreview";
 import ChatPanel, { ChatMode } from "./ChatPanel";
 import HomePage from "./HomePage";
 import ProjectsPage from "./ProjectsPage";
-import BottomNav, { Tab } from "./BottomNav";
+import BottomNav, { Tab } from "@/components/BottomNav";
 import AntWorker from "./AntWorker";
 import CoreDashboard from "./CoreDashboard";
 import { useGitHub } from "./useGitHub";
@@ -1134,12 +1134,6 @@ export default function LumenApp() {
           className="h-dvh flex flex-col bg-[#07070c] overflow-hidden"
           style={{ maxWidth: "100vw" }}
         >
-           <button
-              onClick={() => alert("Автопилот Муравья работает успешно!")}
-              className="absolute top-4 right-60 z-50 px-3 py-1.5 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors text-sm"
-            >
-              ТЕСТ 2
-            </button>
 
           {(activeTab === "chat" || activeTab === "projects" || activeTab === "core") && (
             <LumenTopBar
