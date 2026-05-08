@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import Icon from '@/components/ui/icon';
+import Icon, { IconName } from '@/components/ui/icon';
 
 interface CoreDashboardProps {
   onOpenSettings: () => void;
@@ -11,7 +11,7 @@ const cardStyle = "flex flex-col items-center justify-center gap-2 rounded-2xl b
 const cardIcon = "w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-amber-400";
 
 const CoreDashboard = ({ onOpenSettings, onPublish }: CoreDashboardProps) => {
-  const coreFeatures = [
+  const coreFeatures: { name: string; icon: IconName; action: () => void }[] = [
     { name: 'База данных', icon: 'Database', action: () => alert('Управление базой данных (в разработке)') },
     { name: 'Функции', icon: 'Zap', action: () => alert('Управление серверными функциями (в разработке)') },
     { name: 'Секреты', icon: 'Key', action: onOpenSettings },
@@ -34,7 +34,7 @@ const CoreDashboard = ({ onOpenSettings, onPublish }: CoreDashboardProps) => {
         {coreFeatures.map((feature) => (
           <button key={feature.name} onClick={feature.action} className={cardStyle}>
             <div className={cardIcon}>
-              <Icon name={feature.icon as any} size={24} />
+              <Icon name={feature.icon} size={24} />
             </div>
             <span className="font-semibold text-sm mt-2">{feature.name}</span>
           </button>

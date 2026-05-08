@@ -8,7 +8,7 @@ interface Props {
   isAdmin: boolean;
   onSettings: () => void;
   onLogout: () => void;
-  balance: number | "∞"; // <<< ИЗМЕНЕНИЕ
+  balance: string;
 }
 
 const STATUS_MAP = {
@@ -20,6 +20,7 @@ const STATUS_MAP = {
 
 export default function LumenTopBar({ status, cycleLabel, selfEditActive, isAdmin, onSettings, onLogout, balance }: Props) {
   const s = STATUS_MAP[status];
+  const isUnlimited = balance === "Безлимит";
 
   return (
     <motion.header
@@ -52,10 +53,9 @@ export default function LumenTopBar({ status, cycleLabel, selfEditActive, isAdmi
 
       {/* Right — Actions */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* <<< ИЗМЕНЕНИЕ: Отображение баланса */}
-        <div className={`flex items-center gap-1.5 h-6 px-2.5 rounded-md border ${balance === 0 ? "bg-red-500/10 border-red-500/25" : "bg-white/[0.04] border-white/10"}`}>
-            <Icon name="Zap" size={11} className={`${balance === 0 ? "text-red-400" : balance === "∞" ? "text-purple-400" : "text-amber-400"}`} />
-            <span className={`text-xs font-semibold ${balance === 0 ? "text-red-400" : "text-white/60"}`}>
+        <div className={`flex items-center gap-1.5 h-6 px-2.5 rounded-md border ${isUnlimited ? "bg-purple-500/10 border-purple-500/25" : "bg-white/[0.04] border-white/10"}`}>
+            <Icon name={isUnlimited ? "Infinity" : "Zap"} size={11} className={`${isUnlimited ? "text-purple-400" : "text-amber-400"}`} />
+            <span className={`text-xs font-semibold ${isUnlimited ? "text-purple-300" : "text-white/60"}`}>
                 {balance}
             </span>
         </div>
