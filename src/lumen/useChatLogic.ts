@@ -251,7 +251,11 @@ export function useChatLogic({
           setCurrentFile(fetched);
           systemPrompt = EDIT_SYSTEM_PROMPT_FULL(currentHtml) + customAddition;
         } else {
-          console.warn(`Could not read file from GitHub. Proceeding with new file creation.`);
+          // ИЗМЕНЕНИЕ: Показываем ошибку пользователю
+          setCycleStatus("error");
+          setCycleLabel("");
+          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Не удалось загрузить файл: ${fetched.message || 'Неизвестная ошибка GitHub'}` }]);
+          return;
         }
       }
 
