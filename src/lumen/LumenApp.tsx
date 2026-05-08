@@ -789,50 +789,13 @@ export default function LumenApp() {
 
 
   const handleSqlRequest = useCallback(async (text: string) => {
-    // ... (implementation unchanged)
+    // ... (implementation unchanged for now)
   }, [settings, messages]);
-
-  const handleSendChat = useCallback(async (text: string, mode: ChatMode = "site") => {
-    abortRef.current = false;
-    
-    const userMsg: Message = { id: ++msgCounter, role: "user", text };
-    setMessages(prev => [...prev, userMsg]);
-    setDeployResult(null);
-    setPendingSql(null);
-
-    if (mode === "music") { 
-      await handleSendMusic(text);
-      return;
-    }
-
-    if (mode === "chat") {
-      if (selfEditMode && adminMode) {
-        await handleSelfEditChat(text);
-        return;
-      }
-      const isSqlRequest = /создай таблиц|добавь колонк|измени схему|миграци|sql|create table|alter table|добавь поле|удали колонк|индекс|foreign key|база данных.*изменить|изменить.*базу/i.test(text);
-      if (isSqlRequest) {
-        await handleSqlRequest(text);
-      } else {
-        // Fallback to regular chat if not in self-edit mode
-        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "Обычный чат пока не реализован." }]);
-      }
-      return;
-    }
-
-    if (mode === "image") {
-      await handleSendImage(text);
-      return;
-    }
-    
-    // ... Existing site creation logic ...
-  }, [settings, ghSettings, selfEditMode, adminMode, messages, handleSelfEditChat, handleSqlRequest, handleSendMusic, handleSendImage]);
   
   const handleNewMessage = (message: Message) => {
     setMessages(prev => [...prev, message]);
   };
-  
-  //... rest of the component
+
   const handleSend = useCallback(async (text: string, mode: ChatMode = "site") => {
     abortRef.current = false;
     
@@ -841,36 +804,48 @@ export default function LumenApp() {
     setDeployResult(null);
     setPendingSql(null);
 
-    if (mode === "music") { 
-      await handleSendMusic(text);
-      return;
-    }
-
-    if (mode === "chat") {
-      if (selfEditMode && adminMode && ghSettings.engineRepo) {
-        await handleSelfEditChat(text);
-        return;
-      }
-      const isSqlRequest = /создай таблиц|добавь колонк|измени схему|миграци|sql|create table|alter table|добавь поле|удали колонк|индекс|foreign key|база данных.*изменить|изменить.*базу/i.test(text);
-      if (isSqlRequest) {
-        await handleSqlRequest(text);
-      } else {
-        await handleSendChat(text);
-      }
-      return;
-    }
-
-    if (mode === "image") {
-      await handleSendImage(text);
-      return;
-    }
-
     if (!settings.apiKey) {
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "API-ключ не найден. Администратору необходимо перейти на страницу /system-admin и ввести ключ." }]);
         return;
     }
 
     try {
+      if (mode === "music") {
+        await handleSendMusic(text);
+        return;
+      }
+
+      if (mode === "image") {
+        await handleSendImage(text);
+        return;
+      }
+      
+      if (mode === "chat") {
+        if (selfEditMode && adminMode && ghSettings.engineRepo) {
+          await handleSelfEditChat(text);
+          return;
+        }
+
+        const isSqlRequest = /создай таблиц|добавь колонк|измени схему|миграци|sql|create table|alter table|добавь поле|удали колонк|индекс|foreign key|база данных.*изменить|изменить.*базу/i.test(text);
+        if (isSqlRequest) {
+          await handleSqlRequest(text);
+          return;
+        }
+        
+        setCycleStatus("generating");
+        setCycleLabel("Думаю...");
+        const GENERAL_CHAT_PROMPT = "Ты — Муравей, дружелюбный и полезный ИИ-ассистент. Отвечай на вопросы пользователя на русском языке.";
+        const response = await callAI(GENERAL_CHAT_PROMPT, text, (chars) => {
+            setCycleLabel(`Думаю... ${chars} симв.`);
+        }, true);
+
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response }]);
+        setCycleStatus("done");
+        setCycleLabel("");
+        return;
+      }
+
+      // Default mode: "site"
       let currentHtml = "";
       const customAddition = settings.customPrompt?.trim() ? `\n\n## Дополнительные инструкции от владельца:\n${settings.customPrompt.trim()}` : "";
       let systemPrompt = CREATE_SYSTEM_PROMPT + customAddition;
@@ -1006,7 +981,7 @@ export default function LumenApp() {
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Ошибка: ${errText}` }]);
       }
     }
-  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSendChat, handleSendImage, handleSqlRequest, handleSendMusic, adminMode, messages]);
+  }, [settings, ghSettings, fetchFromGitHub, pushToGitHub, currentFilePath, fullCodeContext, liveUrl, handleSelfEditChat, handleSendImage, handleSqlRequest, handleSendMusic, adminMode, selfEditMode, messages]);
 
   const handleSelectTemplate = useCallback((prompt: string) => {
     setActiveTab("chat");
