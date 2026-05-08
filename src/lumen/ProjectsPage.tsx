@@ -21,7 +21,7 @@ interface ProjectCardData {
 const ProjectCard = ({ image, title, subtitle, large = false, onClick }: { image: string, title: string, subtitle: string, large?: boolean, onClick: () => void }) => (
   <div 
     onClick={onClick}
-    className={`relative w-full rounded-2xl overflow-hidden group cursor-pointer border border-white/[0.08] hover:border-white/20 transition-all ${large ? 'col-span-1 md:col-span-2 lg:col-span-3 aspect-video' : 'aspect-[4/3]'}`}
+    className={`relative w-full rounded-2xl overflow-hidden group cursor-pointer border border-white/[0.08] hover:border-white/20 transition-all ${large ? 'col-span-1 md:col-span-2 aspect-video' : 'aspect-[4/3]'}`}
   >
     <img src={image} alt={title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
@@ -44,13 +44,11 @@ const managedProjects: ProjectCardData[] = [
         image: "https://images.unsplash.com/photo-1608686207856-001b95cf60ca?q=80&w=2128&auto=format&fit=crop",
         repo: "denis22078533-coder/muravey",
         siteUrl: "https://denis22078533-coder.github.io/muravey/",
-        large: true,
     }
 ];
 
 const templates: ProjectCardData[] = [
   {
-    large: true,
     title: "Магазин одежды",
     subtitle: "Сезонная распродажа",
     image: "https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=2071&auto=format&fit=crop",
