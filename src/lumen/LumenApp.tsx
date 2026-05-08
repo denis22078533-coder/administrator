@@ -864,10 +864,10 @@ export default function LumenApp() {
           setCurrentFilePath(fetched.filePath);
           systemPrompt = EDIT_SYSTEM_PROMPT_FULL(currentHtml) + customAddition;
         } else if (!fetched.ok) {
-          const is404 = fetched.message?.includes("404");
-          if (!is404) {
-            throw new Error(`Не удалось прочитать файл из GitHub: ${fetched.message}`);
-          }
+          // If the file could not be read (e.g., 404 Not Found),
+          // we assume it's a new site creation and proceed without an error.
+          // The system prompt will remain CREATE_SYSTEM_PROMPT.
+          console.warn(`Could not read file from GitHub (message: "${fetched.message}"). Proceeding with new file creation.`);
         }
       }
 
