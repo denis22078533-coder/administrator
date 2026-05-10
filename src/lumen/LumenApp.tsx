@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Icon from "@/components/ui/icon";
 import LumenTopBar from "./LumenTopBar";
 import LivePreview from "./LivePreview";
@@ -120,6 +121,7 @@ const injectBaseHref = (html: string, baseUrl: string): string => {
 };
 
 export default function LumenApp() {
+  const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
   const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
   const [currentFile, setCurrentFile] = useState<GitHubFile | null>(null);
@@ -304,7 +306,7 @@ export default function LumenApp() {
               cycleLabel={cycleLabel}
               selfEditActive={selfEditMode && adminMode}
               isAdmin={adminMode}
-              onSettings={() => window.location.href = '/system-admin'}
+              onSettings={() => navigate("/admin")}
               onLogout={handleLogout}
               balance={"Безлимит"}
             />
@@ -319,7 +321,7 @@ export default function LumenApp() {
               )}
               {adminMode && activeTab === "core" && (
                   <motion.div key="core" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <CoreDashboard onOpenSettings={() => window.location.href = '/system-admin'} onPublish={() => alert('Публикация (в разработке)')} />
+                    <CoreDashboard onOpenSettings={() => navigate("/admin")} onPublish={() => alert('Публикация (в разработке)')} />
                   </motion.div>
               )}
               {activeTab === "chat" && (
@@ -342,13 +344,7 @@ export default function LumenApp() {
                           deployResult={deployResult}
                           pendingSql={pendingSql}
                           hasGitHub={!!(ghSettings.token && ghSettings.repo)}
-                          onOpenSettings={() => { 
-                              setMessages(prev => [...prev, {
-                                  id: generateUniqueId(), 
-                                  role: "assistant", 
-                                  text: "Для доступа к настройкам перейдите на страницу /system-admin"
-                              }]);
-                           }}
+                          onOpenSettings={() => navigate("/admin")}
                         />
                     </div>
                     <div className={`flex flex-col h-full flex-1 min-w-0 ${mobileTab === "preview" ? "flex" : "hidden md:flex"}`}>
