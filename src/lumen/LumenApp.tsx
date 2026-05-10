@@ -7,6 +7,7 @@ import LivePreview from "./LivePreview";
 import ChatPanel from "./ChatPanel";
 import HomePage from "./HomePage";
 import ProjectsPage from "./ProjectsPage";
+import ProfilePage from "./ProfilePage";
 import BottomNav, { Tab } from "@/components/BottomNav";
 import AntWorker from "./AntWorker";
 import CoreDashboard from "./CoreDashboard";
@@ -369,6 +370,11 @@ export default function LumenApp() {
                   <motion.div key="projects" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
                     <ProjectsPage onGoToChat={() => setActiveTab("chat")} onSelectTemplate={handleSelectTemplate} onSelectManagedProject={handleSelectManagedProject} />
                   </motion.div>
+              )}
+              {activeTab === "profile" && (
+                <motion.div key="profile" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
+                    <ProfilePage onLogout={handleLogout} />
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
