@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS: Settings = {
 const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean }) => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = () => {
     if (onLogin(password)) {
@@ -64,14 +65,24 @@ const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean }) => {
         <p className="text-white/40 text-base mb-8 text-center">Вход для разработчиков</p>
 
         <div className="w-full flex flex-col gap-4">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleLogin()}
-            placeholder="Пароль"
-            className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] transition-all"
-          />
+          <div className="relative w-full">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleLogin()}
+              placeholder="Пароль"
+              className="w-full px-4 py-3 pr-10 bg-white/[0.05] border border-white/[0.1] rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] transition-all"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              <Icon
+                name={showPassword ? "EyeOff" : "Eye"}
+                className="text-white/40 cursor-pointer"
+                size={18}
+                onClick={() => setShowPassword(!showPassword)}
+              />
+            </div>
+          </div>
           <button
             onClick={handleLogin}
             className="w-full px-4 py-3 bg-[#f59e0b] text-black font-bold rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-50"
