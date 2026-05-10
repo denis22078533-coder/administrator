@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Icon from "@/components/ui/icon";
+import Icon, { IconName } from "@/components/ui/icon";
 import { useAuth } from "@/context/AuthContext";
 
 const SPORTS = ["MotoGP", "Формула 1", "WRC Ралли", "Superbike", "Дрифт", "Картинг"];
@@ -22,6 +22,8 @@ export default function AuthScreen() {
     avatar_emoji: "🏁",
     favorite_sports: [] as string[],
   });
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +66,12 @@ export default function AuthScreen() {
   };
 
   if (screen === "welcome") {
+    const features: { icon: IconName; text: string }[] = [
+      { icon: "Radio", text: "Прямые трансляции гонок" },
+      { icon: "Calendar", text: "Все мероприятия сезона" },
+      { icon: "MessageCircle", text: "Живые чаты фанатов" },
+    ];
+
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-between px-6 py-10">
         {/* Hero */}
@@ -86,11 +94,7 @@ export default function AuthScreen() {
 
           {/* Features */}
           <div className="mt-8 flex flex-col gap-3 w-full max-w-xs">
-            {[
-              { icon: "Radio", text: "Прямые трансляции гонок" },
-              { icon: "Calendar", text: "Все мероприятия сезона" },
-              { icon: "MessageCircle", text: "Живые чаты фанатов" },
-            ].map((f) => (
+            {features.map((f) => (
               <div key={f.icon} className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
                 <Icon name={f.icon} size={18} className="text-fire flex-shrink-0" />
                 <span className="text-white/80 text-sm font-roboto">{f.text}</span>
@@ -145,16 +149,24 @@ export default function AuthScreen() {
               autoComplete="username"
             />
           </div>
-          <div>
+          <div className="relative">
             <label className="text-xs font-oswald font-bold text-muted-foreground tracking-wider mb-1.5 block">ПАРОЛЬ</label>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={loginForm.password}
               onChange={e => setLoginForm(p => ({ ...p, password: e.target.value }))}
               placeholder="••••••••"
-              className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-white font-roboto text-sm placeholder:text-muted-foreground outline-none focus:border-fire transition-colors"
+              className="w-full bg-secondary border border-border rounded-xl px-4 py-3 pr-10 text-white font-roboto text-sm placeholder:text-muted-foreground outline-none focus:border-fire transition-colors"
               autoComplete="current-password"
             />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              <Icon
+                name={showPassword ? "EyeOff" : "Eye"}
+                className="text-muted-foreground cursor-pointer"
+                size={18}
+                onClick={() => setShowPassword(!showPassword)}
+              />
+            </div>
           </div>
 
           {error && (
@@ -245,16 +257,24 @@ export default function AuthScreen() {
             autoComplete="email"
           />
         </div>
-        <div>
+        <div className="relative">
           <label className="text-xs font-oswald font-bold text-muted-foreground tracking-wider mb-1.5 block">ПАРОЛЬ *</label>
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={regForm.password}
             onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))}
             placeholder="Минимум 6 символов"
-            className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-white font-roboto text-sm placeholder:text-muted-foreground outline-none focus:border-fire transition-colors"
+            className="w-full bg-secondary border border-border rounded-xl px-4 py-3 pr-10 text-white font-roboto text-sm placeholder:text-muted-foreground outline-none focus:border-fire transition-colors"
             autoComplete="new-password"
           />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+            <Icon
+              name={showPassword ? "EyeOff" : "Eye"}
+              className="text-muted-foreground cursor-pointer"
+              size={18}
+              onClick={() => setShowPassword(!showPassword)}
+            />
+          </div>
         </div>
 
         {/* Favorite sports */}
