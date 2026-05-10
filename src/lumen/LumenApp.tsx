@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Icon from "@/components/ui/icon";
 import LumenTopBar from "./LumenTopBar";
@@ -13,6 +13,8 @@ import CoreDashboard from "./CoreDashboard";
 import { useGitHub, GitHubFile } from "./useGitHub";
 import { useLumenAuth } from "./useLumenAuth";
 import { useChatLogic } from "./useChatLogic";
+
+const generateUniqueId = () => Date.now() + Math.random();
 
 export interface Message {
   id: number;
@@ -108,17 +110,17 @@ const injectBaseHref = (html: string, baseUrl: string): string => {
 
 export default function LumenApp() {
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, fetchFromGitHub, pushToGitHub, currentFile, setCurrentFile } = useGitHub(adminMode);
+  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
+  const [currentFile, setCurrentFile] = useState<GitHubFile | null>(null);
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [htmlHistory, setHtmlHistory] = useState<string[]>([]);
   const [mobileTab, setMobileTab] = useState<"chat" | "preview">("chat");
-  const [fullCodeContext, setFullCodeContext] = useState<{ html: string; fileName: string } | null>(null);
-  const [showRebuildBanner, setShowRebuildBanner] = useState(false);
+  const [fullCodeContext] = useState<{ html: string; fileName: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [loadingFromGitHub, setLoadingFromGitHub] = useState(false);
 
-  const [settings, setSettings] = useState<Settings>(() => {
+  const [settings] = useState<Settings>(() => {
     try {
       const saved = localStorage.getItem("lumen_settings");
       return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
@@ -167,7 +169,7 @@ export default function LumenApp() {
     handleStop, handleApply, setMessages 
   } = useChatLogic({
     settings, ghSettings, adminMode, selfEditMode, fullCodeContext, currentFile, liveUrl,
-    fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile, setShowRebuildBanner, setFullCodeContext
+    fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile
   });
   
   const handleLumenLogin = (password: string): boolean => {
@@ -194,7 +196,7 @@ export default function LumenApp() {
 
   const handleLoadFromGitHub = useCallback(async () => {
     if (!ghSettings.token || !ghSettings.repo) {
-        setMessages(prev => [...prev, { id: Date.now(), role: "assistant", text: "GitHub-репозиторий не настроен." }]);
+        setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "GitHub-репозиторий не настроен." }]);
         return;
     }
     setLoadingFromGitHub(true);
@@ -208,12 +210,12 @@ export default function LumenApp() {
         savePreviewHtml(finalHtml);
         setMobileTab("preview");
         setMessages([{
-            id: Date.now(),
+            id: generateUniqueId(),
             role: "assistant",
             text: `Загружен проект «${fetched.filePath}» из репозитория ${ghSettings.repo}. Опишите, что нужно изменить.`,
         }]);
     } else {
-         setMessages(prev => [...prev, { id: Date.now(), role: "assistant", text: `Не удалось загрузить файл: ${fetched.message}` }]);
+         setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить файл: ${fetched.message}` }]);
     }
 }, [ghSettings, fetchFromGitHub, liveUrl, setMessages, setCurrentFile, savePreviewHtml, setMobileTab]);
 
@@ -342,7 +344,7 @@ export default function LumenApp() {
                           hasGitHub={!!(ghSettings.token && ghSettings.repo)}
                           onOpenSettings={() => { 
                               setMessages(prev => [...prev, {
-                                  id: Date.now(), 
+                                  id: generateUniqueId(), 
                                   role: "assistant", 
                                   text: "Для доступа к настройкам перейдите на страницу /system-admin"
                               }]);

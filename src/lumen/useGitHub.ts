@@ -29,7 +29,7 @@ function load(): GitHubSettings {
   } catch { return DEFAULT; }
 }
 
-export interface FetchResult {
+export interface GitHubFile {
   ok: boolean;
   html: string;
   sha: string;
@@ -127,7 +127,7 @@ export function useGitHub(isAdminMode: boolean) {
   }, [ghSettings, isAdminMode, privatePush]);
 
 
-  const fetchFromGitHub = useCallback(async (): Promise<FetchResult> => {
+  const fetchFromGitHub = useCallback(async (): Promise<GitHubFile> => {
     // "Загрузить" всегда читает index.html из репозитория ПОЛЬЗОВАТЕЛЯ (muravey)
     const { token, repo } = ghSettings;
     const path = "index.html"; 

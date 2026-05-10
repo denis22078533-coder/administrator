@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useLumenAuth } from './lumen/useLumenAuth';
 import SettingsDrawer from './lumen/SettingsDrawer'; // We will repurpose this
 import { useGitHub } from './lumen/useGitHub';
+import { useNavigate } from 'react-router-dom';
 
 // This is a placeholder for the settings data structure
 interface Settings {
@@ -72,8 +73,9 @@ const AdminLoginPage = ({ onLogin }: { onLogin: (p: string) => void }) => {
 
 
 export default function SystemAdminPage() {
+    const navigate = useNavigate();
     const { adminMode, adminLogin } = useLumenAuth();
-    const { ghSettings, saveGhSettings, syncEngine } = useGitHub();
+    const { ghSettings, saveGhSettings, syncEngine } = useGitHub(true);
 
     // Re-implementing state management that was in LumenApp
     const [settings, setSettings] = useState<Settings>(() => {
@@ -145,7 +147,7 @@ export default function SystemAdminPage() {
                         <span>Панель Администратора</span>
                     </h1>
                      <button 
-                        onClick={() => window.location.href = '/'}
+                        onClick={() => navigate('/lumen')}
                         className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm font-semibold hover:bg-white/10 transition-colors"
                     >
                         ← Назад в приложение

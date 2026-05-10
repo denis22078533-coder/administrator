@@ -31,8 +31,6 @@ interface UseChatLogicProps {
   savePreviewHtml: (html: string | null) => void;
   setMobileTab: (tab: "chat" | "preview") => void;
   setCurrentFile: (file: GitHubFile | null) => void;
-  setShowRebuildBanner: (show: boolean) => void;
-  setFullCodeContext: (context: { html: string; fileName: string } | null) => void;
 }
 
 export function useChatLogic({
@@ -48,8 +46,6 @@ export function useChatLogic({
   savePreviewHtml,
   setMobileTab,
   setCurrentFile,
-  setShowRebuildBanner,
-  setFullCodeContext,
 }: UseChatLogicProps) {
   const [cycleStatus, setCycleStatus] = useState<CycleStatus>("idle");
   const [cycleLabel, setCycleLabel] = useState("");
@@ -74,7 +70,7 @@ export function useChatLogic({
     return history;
   };
 
-  const callAI = async (systemPrompt: string, userText: string, onProgress?: (chars: number) => void, useHistory = false, timeoutMs = 300000): Promise<string> => {
+  const callAI = async (systemPrompt: string, userText: string, useHistory = false, timeoutMs = 300000): Promise<string> => {
     const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
     const isOpenAI = settings.provider === "openai";
 
@@ -187,7 +183,7 @@ export function useChatLogic({
     setCycleStatus("generating");
     setCycleLabel("Проектирую SQL миграцию...");
     try {
-        const response = await callAI(SQL_MIGRATION_SYSTEM_PROMPT, text, (c) => setCycleLabel(`Думаю... ${c} симв.`));
+        const response = await callAI(SQL_MIGRATION_SYSTEM_PROMPT, text);
         const match = response.match(/```sql\s*([\s\S]*?)```/);
         const sql = match ? match[1].trim() : "";
         const explanation = response.replace(/```sql[\s\S]*?```/, '').trim();
@@ -226,7 +222,7 @@ export function useChatLogic({
         
         setCycleStatus("generating");
         setCycleLabel("Думаю...");
-        const response = await callAI("Ты — Муравей, дружелюбный и полезный ИИ-ассистент.", text, (c) => setCycleLabel(`Думаю... ${c} симв.`), true);
+        const response = await callAI("Ты — Муравей, дружелюбный и полезный ИИ-ассистент.", text, true);
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: response }]);
         setCycleStatus("done");
         setCycleLabel("");
@@ -266,7 +262,7 @@ export function useChatLogic({
       setCycleStatus("generating");
       setCycleLabel("Создаю сайт...");
       const passHistory = !!(fullCodeContext || (ghSettings.token && ghSettings.repo && currentHtml));
-      const rawResponse = await callAI(systemPrompt, text, (c) => setCycleLabel(`Создаю сайт... ${c} симв.`), passHistory);
+      const rawResponse = await callAI(systemPrompt, text, passHistory);
       
       const { text: chatText, artifact: cleanHtml } = extractArtifact(rawResponse);
       if (!cleanHtml || !/<[a-z][\s\S]*>/i.test(cleanHtml)) {
@@ -292,7 +288,6 @@ export function useChatLogic({
 
       const assistantId = ++msgCounter;
       setMessages(prev => [...prev, { id: assistantId, role: "assistant", text: chatText, html: cleanHtml }]);
-      setShowRebuildBanner(!ghSettings.token || !ghSettings.repo);
 
       if (ghSettings.token && ghSettings.repo) {
         setCycleLabel("Загружаю в GitHub...");
@@ -319,7 +314,7 @@ export function useChatLogic({
     }
   }, [
     settings, ghSettings, fullCodeContext, currentFile, liveUrl, adminMode, selfEditMode, messages,
-    fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile, setShowRebuildBanner,
+    fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile,
     handleSendMusic, handleSendImage, handleSqlRequest
   ]);
   
