@@ -7,17 +7,14 @@ export type ChatMode = "site" | "chat" | "image" | "music";
 
 interface ChatPanelProps {
   status: string;
-  cycleLabel: string;
   messages: Message[];
   onSend: (text: string, mode: ChatMode) => void;
-  onNewMessage: (message: Message) => void;
   onStop: () => void;
   onApply: (msgId: number, html: string) => void;
   deployingId: number | null;
   deployResult: { id: number; ok: boolean; message: string } | null;
   pendingSql: { sql: string; explanation: string } | null;
   hasGitHub: boolean;
-  onOpenSettings: () => void;
 }
 
 const ScrollToBottom = () => {
@@ -35,17 +32,14 @@ const CHAT_MODES: { id: ChatMode; label: string; icon: any, placeholder: string 
 
 export default function ChatPanel({
   status,
-  cycleLabel,
   messages,
   onSend,
-  onNewMessage,
   onStop,
   onApply,
   deployingId,
   deployResult,
   pendingSql,
   hasGitHub,
-  onOpenSettings
 }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ChatMode>("site");

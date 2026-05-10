@@ -125,6 +125,20 @@ const injectBaseHref = (html: string, baseUrl: string): string => {
     return html;
 };
 
+const injectCharset = (html: string): string => {
+    const charsetTag = '<meta charset="UTF-8">';
+    if (/<meta[^>]*charset=/i.test(html)) {
+        return html;
+    }
+    if (/<head>/i.test(html)) {
+        return html.replace(/<head>/i, `<head>\n  ${charsetTag}`);
+    }
+    if (/<body/i.test(html)) {
+        return html.replace(/<body([^>]*)>/i, `<head>\n  ${charsetTag}\n</head>\n<body$1>`);
+    }
+    return `${charsetTag}\n${html}`;
+};
+
 export default function LumenApp() {
   const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
@@ -182,12 +196,19 @@ export default function LumenApp() {
 
   const { 
     cycleStatus, cycleLabel, messages, deployingId, 
-    deployResult, pendingSql, handleSend, handleNewMessage, 
+    deployResult, pendingSql, handleSend, 
     handleStop, handleApply, setMessages 
   } = useChatLogic({
     settings, ghSettings, adminMode, selfEditMode, fullCodeContext, currentFile, liveUrl,
     fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile
   });
+
+  const processedPreviewHtml = useMemo(() => {
+    if (!previewHtml) return null;
+    const charsetHtml = injectCharset(previewHtml);
+    const themedHtml = injectLightTheme(charsetHtml);
+    return liveUrl ? injectBaseHref(themedHtml, liveUrl) : themedHtml;
+  }, [previewHtml, liveUrl]);
   
   const handleLumenLogin = (password: string): boolean => {
     const regularLoginSuccess = login(password);
@@ -220,9 +241,7 @@ export default function LumenApp() {
 
     if (fetched.ok && fetched.html) {
         setCurrentFile(fetched);
-        const themedHtml = injectLightTheme(fetched.html);
-        const finalHtml = liveUrl ? injectBaseHref(themedHtml, liveUrl) : themedHtml;
-        savePreviewHtml(finalHtml);
+        savePreviewHtml(fetched.html);
         setMobileTab("preview");
         setMessages([{
             id: generateUniqueId(),
@@ -339,23 +358,20 @@ export default function LumenApp() {
                     <div className={`flex flex-col h-full md:w-[420px] md:flex-none bg-[#0a0a0f] md:static ${mobileTab === "chat" ? "absolute inset-0 z-10 flex" : "hidden md:flex"}`}>
                        <ChatPanel
                           status={cycleStatus}
-                          cycleLabel={cycleLabel}
                           messages={messages}
                           onSend={handleSend}
-                          onNewMessage={handleNewMessage}
                           onStop={handleStop}
                           onApply={handleApply}
                           deployingId={deployingId}
                           deployResult={deployResult}
                           pendingSql={pendingSql}
                           hasGitHub={!!(ghSettings.token && ghSettings.repo)}
-                          onOpenSettings={() => navigate("/admin")}
                         />
                     </div>
                     <div className={`flex flex-col h-full flex-1 min-w-0 ${mobileTab === "preview" ? "flex" : "hidden md:flex"}`}>
                       <LivePreview
                         status={topStatus}
-                        previewHtml={previewHtml}
+                        previewHtml={processedPreviewHtml}
                         liveUrl={liveUrl}
                         onApplyToGitHub={ghSettings.token && ghSettings.repo ? handleApplyToGitHub : undefined}
                         onUndo={htmlHistory.length > 0 ? handleUndo : undefined}
