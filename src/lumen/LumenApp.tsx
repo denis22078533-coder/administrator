@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -62,7 +63,7 @@ const SimpleLoginPage = ({ onLogin }: { onLogin: (p: string) => boolean }) => {
         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center text-5xl shadow-[0_0_40px_#f59e0b50] mb-8">
           🐜
         </div>
-        <h1 className="text-white font-bold text-3xl mb-2 text-center">Lumen Platform</h1>
+        <h1 className="text-white font-bold text-3xl mb-2 text-center">муравей КУЗЯ</h1>
         <p className="text-white/40 text-base mb-8 text-center">Вход для разработчиков</p>
 
         <div className="w-full flex flex-col gap-4">
@@ -112,7 +113,7 @@ const injectBaseHref = (html: string, baseUrl: string): string => {
     if (!baseUrl) return html;
     const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     if (/<base\s[^>]*href/i.test(html)) {
-      return html.replace(/<base\s[^>]*href=['"][^'"]*[''][^>]*>/i, `<base href=\"${base}\"/>`);
+      return html.replace(/<base\s[^>]*href=['\"][^\'\"]*['\'][^>]*>/i, `<base href=\"${base}\"/>`);
     }
     if (/<head>/i.test(html)) {
       return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\"/>`);

@@ -4,6 +4,7 @@ import { useLumenAuth } from './lumen/useLumenAuth';
 import SettingsDrawer from './lumen/SettingsDrawer'; // We will repurpose this
 import { useGitHub } from './lumen/useGitHub';
 import { useNavigate } from 'react-router-dom';
+import Icon from '@/components/ui/icon'; // Added Icon import
 
 // This is a placeholder for the settings data structure
 interface Settings {
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 const AdminLoginPage = ({ onLogin }: { onLogin: (p: string) => void }) => {
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false); // State for password visibility
     const [error, setError] = useState('');
 
     const handleLogin = () => {
@@ -50,14 +52,24 @@ const AdminLoginPage = ({ onLogin }: { onLogin: (p: string) => void }) => {
                 <h1 className="text-white font-bold text-3xl mb-2 text-center">Вход для Администратора сайта</h1>
                 
                 <div className="w-full flex flex-col gap-4 mt-8">
-                    <input 
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                        placeholder="Пароль"
-                        className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] transition-all"
-                    />
+                    <div className="relative w-full">
+                        <input 
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                            placeholder="Пароль"
+                            className="w-full px-4 py-3 pr-12 bg-white/[0.05] border border-white/[0.1] rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] transition-all"
+                        />
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-4">
+                           <Icon
+                                name={showPassword ? "EyeOff" : "Eye"}
+                                className="text-white/50 cursor-pointer hover:text-white/80 transition-colors"
+                                size={20}
+                                onClick={() => setShowPassword(!showPassword)}
+                           />
+                        </div>
+                    </div>
                     <button 
                         onClick={handleLogin}
                         className="w-full px-4 py-3 bg-[#f59e0b] text-black font-bold rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-50"
