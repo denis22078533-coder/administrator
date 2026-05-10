@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 const STORAGE_KEY = "lumen_github";
 
@@ -168,14 +170,21 @@ export function useGitHub(isAdminMode: boolean) {
     }
   }, [ghSettings, isAdminMode]);
   
-    const downloadProjectAsZip = useCallback(async () => {
-        try {
-            window.location.href = '/download-project-zip';
-        } catch (error: any) { 
-            console.error("Ошибка при скачивании проекта:", error);
-            alert('Не удалось начать скачивание. Пожалуйста, проверьте консоль.');
-        }
-    }, []);
+  const downloadProjectAsZip = useCallback(async (files: ProjectFile[], projectName: string = 'project') => {
+    const zip = new JSZip();
+    
+    files.forEach(file => {
+        zip.file(file.path, file.content);
+    });
+    
+    try {
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, `${projectName}.zip`);
+    } catch (error) {
+        console.error("Ошибка при создании ZIP-архива:", error);
+        alert('Не удалось создать ZIP-архив. Пожалуйста, проверьте консоль.');
+    }
+}, []);
 
   return { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip };
 }

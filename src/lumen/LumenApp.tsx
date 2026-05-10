@@ -142,7 +142,7 @@ const injectCharset = (html: string): string => {
 export default function LumenApp() {
   const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
+  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
   
   // Multi-file project state
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
@@ -198,16 +198,17 @@ export default function LumenApp() {
     });
   };
 
-  const handleApplyToGitHub = useCallback(async () => {
-    if (!ghSettings.token || !currentRepo) {
+  const handleApplyToGitHub = useCallback(async (repoToApply?: string) => {
+    const repo = repoToApply || currentRepo;
+    if (!ghSettings.token || !repo) {
         throw new Error("GitHub не настроен или не выбран проект.");
     }
     if (projectFiles.length === 0) throw new Error("Нет файлов для сохранения.");
     
-    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${currentRepo}`);
+    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${repo}`);
     if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
     
-    const freshFilesResult = await fetchFromGitHub(currentRepo);
+    const freshFilesResult = await fetchFromGitHub(repo);
     if (freshFilesResult.ok) {
         setProjectFiles(freshFilesResult.files);
     }
@@ -285,24 +286,6 @@ export default function LumenApp() {
         setTimeout(() => handleLoadFromGitHub(ghSettings.repo), 100);
     }
   }, [handleLoadFromGitHub, ghSettings.repo]);
-
-  const handleSelectTemplate = useCallback((prompt: string) => {
-    setActiveTab("chat");
-    setMessages([]);
-    setProjectFiles([]);
-    handleSend(prompt, "site");
-  }, [handleSend, setMessages, setProjectFiles]);
-
-  const handleSelectManagedProject = useCallback((project: { repo: string; siteUrl: string; }) => {
-    try {
-        const newSettings = { ...ghSettings, repo: project.repo, siteUrl: project.siteUrl };
-        saveGhSettings(newSettings);
-        sessionStorage.setItem('lumen_load_after_project_select', 'true');
-        window.location.reload(); // Reload to apply new settings and trigger useEffect
-    } catch (e) {
-        console.error("Failed to switch project", e);
-    }
-  }, [ghSettings, saveGhSettings]);
 
   const topStatus = cycleStatus === "reading" ? "generating" : cycleStatus;
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";
@@ -383,13 +366,14 @@ export default function LumenApp() {
               )}
               {activeTab === "projects" && (
                   <motion.div key="projects" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <ProjectsPage 
-                        onGoToChat={() => setActiveTab("chat")} 
-                        onSelectTemplate={handleSelectTemplate} 
-                        onSelectManagedProject={handleSelectManagedProject} 
-                        onProjectLoaded={handleProjectLoaded}
-                        adminMode={adminMode}
-                    />
+                      <ProjectsPage
+                          onOpenProject={handleLoadFromGitHub}
+                          onApplyToGitHub={handleApplyToGitHub}
+                          onProjectLoaded={handleProjectLoaded}
+                          isTesterMode={adminMode}
+                          projectFiles={projectFiles}
+                          currentRepo={currentRepo}
+                      />
                   </motion.div>
               )}
               {activeTab === "profile" && (
