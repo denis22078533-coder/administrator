@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef } from "react";
 import {
   CREATE_SYSTEM_PROMPT,
@@ -247,7 +246,6 @@ export function useChatLogic({
           setCurrentFile(fetched);
           systemPrompt = EDIT_SYSTEM_PROMPT_FULL(currentHtml) + customAddition;
         } else {
-          // ИЗМЕНЕНИЕ: Показываем ошибку пользователю
           setCycleStatus("error");
           setCycleLabel("");
           setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Не удалось загрузить файл: ${fetched.message || 'Неизвестная ошибка GitHub'}` }]);
@@ -256,8 +254,6 @@ export function useChatLogic({
       }
 
       if (abortRef.current) return;
-
-      // ... (Image generation logic can be added here if needed)
 
       setCycleStatus("generating");
       setCycleLabel("Создаю сайт...");
@@ -370,4 +366,3 @@ export function useChatLogic({
     savePreviewHtml
   };
 }
-

@@ -6,7 +6,7 @@ import CoreTab from "./CoreTab";
 import { generateMusic } from "./services/SunoService"; // Импортируем сервис
 import { useApiAuth } from "./useApiAuth"; // Импортируем для токена
 
-const generateUniqueId = () => Date.now() + Math.random();
+const generateUniqueId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
 export type ChatMode = "chat" | "image" | "site" | "core" | "music"; // Добавляем 'music'
@@ -21,14 +21,6 @@ interface Props {
   onApply: (msgId: number, html: string) => Promise<void>;
   deployingId: number | null;
   deployResult: { id: number; ok: boolean; message: string } | null;
-  liveUrl: string;
-  onOpenPreview?: () => void;
-  onLoadFromGitHub?: () => void;
-  loadingFromGitHub?: boolean;
-  currentFilePath?: string;
-  onLoadLocalFile?: () => void;
-  hasLocalFile?: boolean;
-  localFileName?: string;
   pendingSql?: { sql: string; explanation: string } | null;
   hasGitHub?: boolean;
   onOpenSettings?: () => void;
@@ -54,11 +46,6 @@ function detectMode(text: string): ChatMode {
   return "chat";
 }
 
-const CYCLE_STEPS: { key: CycleStatus; label: string; icon: string }[] = [
-  { key: "reading",    label: "Читаю текущий код...", icon: "Download" },
-  { key: "generating", label: "Генерирую...",          icon: "Sparkles" },
-];
-
 const MODE_COLORS: Record<ChatMode, string> = {
   chat:  "#3b82f6",
   image: "#10b981",
@@ -77,10 +64,7 @@ const MODE_LABELS: Record<ChatMode, { icon: string; text: string }> = {
 
 export default function ChatPanel({
   status, cycleLabel, messages, onSend, onNewMessage, onStop, onApply,
-  deployingId, deployResult, liveUrl, onOpenPreview,
-  onLoadFromGitHub, loadingFromGitHub, currentFilePath,
-  onLoadLocalFile, hasLocalFile, localFileName, pendingSql,
-  hasGitHub, onOpenSettings,
+  deployingId, deployResult, pendingSql, hasGitHub, onOpenSettings,
 }: Props) {
   const { token } = useApiAuth(); // Получаем токен
   const [value, setValue] = useState("");
@@ -90,10 +74,10 @@ export default function ChatPanel({
   const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; type: "image" | "text" } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any | null>(null);
 
   const toggleRecording = useCallback(() => {
-    const SpeechRecognitionAPI = (window as Window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition || (window as Window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       alert("Ваш браузер не поддерживает голосовой ввод. Попробуйте Chrome или Safari.");
       return;
@@ -108,7 +92,7 @@ export default function ChatPanel({
     recognition.continuous = true;
     recognition.interimResults = true;
     let finalTranscript = value;
-    recognition.onresult = (e: SpeechRecognitionEvent) => {
+    recognition.onresult = (e: any) => {
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
@@ -154,7 +138,6 @@ export default function ChatPanel({
 
   const isActive = status === "reading" || status === "generating";
   const detectedInputMode = value.trim() ? detectMode(value) : "chat";
-  const activeColor = MODE_COLORS[activeMode];
 
   const handleAttachFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -182,19 +165,16 @@ export default function ChatPanel({
     if ((!value.trim() && !attachedFile) || isActive) return;
     let sendText = value.trim();
     if (attachedFile) {
-      // ... (file attachment logic is unchanged)
       setAttachedFile(null);
     }
     if (!sendText) return;
     
     const mode = detectMode(sendText);
     
-    // Сначала отправляем сообщение пользователя в чат
     onSend(sendText, mode); 
     setValue("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // Если режим - музыка, вызываем наш новый сервис
     if (mode === 'music') {
         if (!token) {
             onNewMessage({ id: generateUniqueId(), role: 'assistant', text: 'Ошибка: вы не авторизованы.' });
@@ -210,7 +190,7 @@ export default function ChatPanel({
                 id: generateUniqueId(),
                 role: 'assistant',
                 text: `Ваш трек готов!`,
-                html: `__MUSIC__:${result.audio_url}` // Специальный префикс для музыки
+                html: `__MUSIC__:${result.audio_url}`
             });
         }
     }
@@ -238,7 +218,6 @@ export default function ChatPanel({
       className="w-full h-full flex flex-col bg-[#0a0a0f] overflow-hidden"
       style={{ paddingBottom: kbOffset > 0 ? kbOffset : undefined }}
     >
-      {/* Header with Mode Switcher */}
       <div className="px-4 py-2 border-b border-white/[0.06] flex items-center gap-2 shrink-0">
          <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-lg">
           {(Object.keys(MODE_LABELS) as ChatMode[]).filter(m => m !== 'image' && m !== 'chat').map(mode => (
@@ -255,38 +234,64 @@ export default function ChatPanel({
           ))}
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          {/* ... (GitHub status unchanged) */}
         </div>
       </div>
 
-      {/* Content based on active mode */}
       {activeMode === 'core' ? (
         <CoreTab onOpenSettings={onOpenSettings!} />
       ) : (
         <>
-          {/* Messages */}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-3">
             <AnimatePresence initial={false}>
               {messages.length === 0 && !isActive && (
-                <motion.div /* ... */ >
-                  {/* ... (suggestions unchanged) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col items-center justify-center gap-4 -mt-8"
+                >
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center text-3xl shadow-[0_0_30px_#f59e0b40]">
+                    🐜
+                  </div>
+                  <h2 className="text-white font-bold text-xl">
+                    Чем могу помочь?
+                  </h2>
+                  <div className="flex flex-wrap items-center justify-center gap-2 max-w-md">
+                    {SUGGESTIONS.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setValue(s.text);
+                          if (textareaRef.current) {
+                            textareaRef.current.focus();
+                          }
+                        }}
+                        className="flex items-center gap-1.5 h-7 px-3 rounded-md bg-white/[0.05] border border-white/[0.08] hover:bg-white/[0.1] text-white/50 hover:text-white/80 text-xs font-semibold transition-colors"
+                      >
+                        <Icon name={s.icon as any} size={12} />
+                        {s.text}
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
               )}
 
               {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
-                  /* ... */
+                  layout
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
                   className={`flex flex-col gap-1.5 ${msg.role === "user" ? "items-end" : "items-start"}`}
                 >
-                  {/* Рендер картинки */}
                   {msg.role === "assistant" && msg.html?.startsWith("__IMAGE__:") && (
-                    <div /* ... */ >
-                       {/* ... (image display unchanged) */}
+                    <div className="max-w-[90%] bg-white/[0.05] border border-white/[0.08] p-1.5 rounded-xl">
+                      <img src={msg.html.replace("__IMAGE__:", "")} alt="Generated image" className="w-full max-w-xs rounded-lg" />
                     </div>
                   )}
 
-                  {/* Рендер музыки */}
                   {msg.role === "assistant" && msg.html?.startsWith("__MUSIC__:") && (
                     <div className="flex flex-col gap-2 items-start max-w-[92%] w-full">
                        <audio controls src={msg.html.replace("__MUSIC__:", "")} className="w-full h-12 rounded-lg border border-white/[0.10]" />
@@ -317,27 +322,119 @@ export default function ChatPanel({
                     </div>
                   )}
 
-                  {/* ... (download/preview buttons for site unchanged) */}
+                  {msg.role === 'assistant' && msg.html && !msg.html.startsWith('__') && hasGitHub && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <button
+                        onClick={() => onApply(msg.id, msg.html!)}
+                        disabled={deployingId === msg.id}
+                        className="flex items-center gap-1.5 h-7 px-3 rounded-md bg-white/[0.06] border border-white/[0.10] hover:bg-white/[0.12] text-white/50 hover:text-white/80 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        {deployingId === msg.id ? (
+                          <>
+                            <Icon name="Loader" className="animate-spin" size={12} />
+                            <span>Применяется...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="Github" size={12} />
+                            <span>Применить</span>
+                          </>
+                        )}
+                      </button>
+
+                      {deployResult && deployResult.id === msg.id && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`text-xs font-medium flex items-center gap-1.5 ${deployResult.ok ? 'text-green-400/80' : 'text-red-400/80'}`}>
+                          {deployResult.ok ? <Icon name="CheckCircle" size={13} /> : <Icon name="XCircle" size={13} />}
+                          <span>{deployResult.message}</span>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               ))}
 
               {isActive && (
-                 <motion.div /* ... */ >
-                    {/* ... (loading indicators unchanged) */}
-                 </motion.div>
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex items-start max-w-[90%]"
+                >
+                  <div className="px-3 py-2.5 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white/75 rounded-tl-sm flex items-center gap-2">
+                    <Icon name="Sparkles" size={14} className="text-amber-400 animate-pulse" />
+                    <span className="text-xs text-white/50">{cycleLabel}...</span>
+                  </div>
+                </motion.div>
               )}
-
-              <div ref={bottomRef} />
             </AnimatePresence>
+             <div ref={bottomRef} />
           </div>
-          {/* Input */}
           <div className="px-3 pb-3 pt-2 shrink-0 border-t border-white/[0.06]">
-            {/* ... (file attachment, recording indicator, mode hint are mostly unchanged) */}
+            {pendingSql && (
+              <div className="px-3 pb-2">
+                <div className="bg-white/[0.03] border border-amber-400/20 rounded-lg p-3">
+                  <h3 className="text-sm font-semibold text-amber-400">Предложена SQL-миграция</h3>
+                  <p className="text-xs text-white/60 mt-1 mb-3">{pendingSql.explanation}</p>
+                  <pre className="bg-black/20 p-2 rounded-md text-xs text-white/80 overflow-x-auto">
+                    <code>{pendingSql.sql}</code>
+                  </pre>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={handleCopySql}
+                      className="flex items-center gap-1.5 h-7 px-3 rounded-md bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 text-blue-400 text-xs font-semibold transition-colors"
+                    >
+                      <Icon name={sqlCopied ? "Check" : "Copy"} size={12} />
+                      {sqlCopied ? "Скопировано" : "Копировать SQL"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="relative">
+              {modeHint && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="absolute bottom-full left-2 mb-1.5 px-2 py-0.5 bg-white/[0.1] text-white/50 text-[10px] font-semibold rounded-full"
+                >
+                  {modeHint}
+                </motion.div>
+              )}
+              {attachedFile && (
+                 <div className="absolute bottom-full left-0 right-0 p-2 bg-[#0a0a0f]">
+                   <div className="flex items-start gap-2 bg-white/[0.04] border border-white/[0.08] rounded-lg p-2">
+                    {attachedFile.type === "image" ? (
+                      <img src={attachedFile.content} className="w-12 h-12 rounded-md object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-md bg-white/[0.05] flex items-center justify-center">
+                        <Icon name="FileText" size={24} className="text-white/30"/>
+                      </div>
+                    )}
+                     <div className="flex-1 min-w-0">
+                      <p className="text-xs text-white/60 font-semibold truncate">{attachedFile.name}</p>
+                      <p className="text-[10px] text-white/40">{attachedFile.type === "image" ? "Изображение" : "Текстовый файл"}</p>
+                    </div>
+                     <button 
+                      onClick={() => setAttachedFile(null)} 
+                      className="w-6 h-6 rounded-md flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/[0.08] transition-colors"
+                    >
+                       <Icon name="X" size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div
               className="flex items-end gap-2 bg-white/[0.04] border rounded-xl px-3 py-2.5 transition-all duration-300"
               style={{ borderColor: (value.trim() || attachedFile) ? MODE_COLORS[detectedInputMode] + "50" : "rgba(255,255,255,0.08)" }}
             >
+             <input type="file" ref={attachInputRef} onChange={handleAttachFile} className="hidden" />
              <button
                 onClick={() => attachInputRef.current?.click()}
                 disabled={isActive}
@@ -363,21 +460,35 @@ export default function ChatPanel({
               />
               <motion.button
                 onClick={toggleRecording}
-                /* ... */
-              >
-                 {/* ... (mic icon) */}
-              </motion.button>
-
-              <motion.button
-                onClick={handleSend}
-                disabled={(!value.trim() && !attachedFile) || isActive}
-                className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white disabled:opacity-25 transition-all mb-0.5"
-                animate={{ backgroundColor: (value.trim() || attachedFile) && !isActive ? MODE_COLORS[detectedInputMode] : "rgba(255,255,255,0.08)" }}
-                transition={{ duration: 0.3 }}
+                className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors mb-0.5 ${
+                  isRecording ? "bg-red-500/20 text-red-400" : "text-white/30 hover:text-white/70 hover:bg-white/[0.08]"
+                }`}
                 whileTap={{ scale: 0.9 }}
               >
-                <Icon name="ArrowUp" size={13} />
-              </motion.button>
+                <Icon name="Mic" size={13} />
+                </motion.button>
+
+              {isActive ? (
+                <motion.button
+                  onClick={onStop}
+                  className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white bg-red-500/60 hover:bg-red-500/90 transition-colors mb-0.5"
+                  title="Остановить"
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Icon name="Square" size={12} />
+                </motion.button>
+              ) : (
+                <motion.button
+                  onClick={handleSend}
+                  disabled={!value.trim() && !attachedFile}
+                  className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white disabled:opacity-25 transition-all mb-0.5"
+                  animate={{ backgroundColor: (value.trim() || attachedFile) ? MODE_COLORS[detectedInputMode] : "rgba(255,255,255,0.08)" }}
+                  transition={{ duration: 0.3 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Icon name="ArrowUp" size={13} />
+                </motion.button>
+              )}
             </div>
           </div>
         </>

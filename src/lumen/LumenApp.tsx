@@ -1,5 +1,4 @@
-
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Icon from "@/components/ui/icon";
 import LumenTopBar from "./LumenTopBar";
@@ -18,7 +17,7 @@ import { useChatLogic } from "./useChatLogic";
 const generateUniqueId = () => Date.now() + Math.random();
 
 export interface Message {
-  id: number;
+  id: any;
   role: "user" | "assistant";
   text: string;
   html?: string;
@@ -117,9 +116,8 @@ export default function LumenApp() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [htmlHistory, setHtmlHistory] = useState<string[]>([]);
   const [mobileTab, setMobileTab] = useState<"chat" | "preview">("chat");
-  const [fullCodeContext] = useState<{ html: string; fileName: string } | null>(null);
+  const fullCodeContext: { html: string; fileName: string } | null = null;
   const [activeTab, setActiveTab] = useState<Tab>("home");
-  const [loadingFromGitHub, setLoadingFromGitHub] = useState(false);
 
   const [settings] = useState<Settings>(() => {
     try {
@@ -144,14 +142,14 @@ export default function LumenApp() {
     }
   }, [adminMode]);
 
-  const liveUrl = (() => {
+  const liveUrl = useMemo(() => {
     if (ghSettings.siteUrl?.trim()) {
       const u = ghSettings.siteUrl.trim();
       return u.endsWith("/") ? u : u + "/";
     }
     const [user, repo] = (ghSettings.repo || "").split("/");
     return user && repo ? `https://${user}.github.io/${repo}/` : "";
-  })();
+  }, [ghSettings.repo, ghSettings.siteUrl]);
 
   const savePreviewHtml = (html: string | null) => {
     setPreviewHtml(prev => {
@@ -200,9 +198,7 @@ export default function LumenApp() {
         setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "GitHub-репозиторий не настроен." }]);
         return;
     }
-    setLoadingFromGitHub(true);
     const fetched = await fetchFromGitHub();
-    setLoadingFromGitHub(false);
 
     if (fetched.ok && fetched.html) {
         setCurrentFile(fetched);
@@ -333,14 +329,6 @@ export default function LumenApp() {
                           onApply={handleApply}
                           deployingId={deployingId}
                           deployResult={deployResult}
-                          liveUrl={liveUrl}
-                          onOpenPreview={() => setMobileTab("preview")}
-                          onLoadFromGitHub={handleLoadFromGitHub}
-                          loadingFromGitHub={loadingFromGitHub}
-                          currentFilePath={currentFile?.filePath || ghSettings.filePath || "index.html"}
-                          onLoadLocalFile={() => {}}
-                          hasLocalFile={!!fullCodeContext}
-                          localFileName={fullCodeContext?.fileName}
                           pendingSql={pendingSql}
                           hasGitHub={!!(ghSettings.token && ghSettings.repo)}
                           onOpenSettings={() => { 

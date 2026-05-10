@@ -18,10 +18,10 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <BrowserRouter basename="/administrator" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/" element={<SystemAdminPage />} />
-            <Route path="/lumen" element={<LumenApp />} />
+            <Route path="/" element={<LumenApp />} />
+            <Route path="/admin" element={<SystemAdminPage />} />
             <Route path="/motofeed" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
