@@ -6,9 +6,8 @@ import {
   SQL_MIGRATION_SYSTEM_PROMPT,
 } from "./prompts";
 import { MusicService } from "../lib/MusicService";
-import type { Message } from "./LumenApp";
+import type { Message, Settings } from "./LumenApp";
 import type { ChatMode } from "./ChatPanel";
-import type { Settings } from "./LumenApp";
 import type { GitHubSettings, GitHubFile } from "./useGitHub";
 
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
@@ -70,9 +69,6 @@ export function useChatLogic({
   };
 
   const callAI = async (systemPrompt: string, userText: string, useHistory = false, timeoutMs = 300000): Promise<string> => {
-    const rawBase = (settings.baseUrl || "").trim().replace(/\/+$/, "");
-    const isOpenAI = settings.provider === "openai";
-
     const chatMessages = useHistory ? buildChatHistory(userText) : [{ role: "user", content: userText }];
     const maxTokens = 16000;
     const PROXYAPI_HOSTS = new Set(["proxyapi.ru", "www.proxyapi.ru", "api.proxyapi.ru"]);
@@ -80,20 +76,42 @@ export function useChatLogic({
     let endpoint: string;
     let reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
     let requestBody: Record<string, unknown>;
+    
+    const base = (settings.baseUrl || "").trim().replace(/\/+$/, "");
+    const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+    const useProxy = PROXYAPI_HOSTS.has(parsedHost);
 
-    if (isOpenAI) {
-      const base = rawBase || (import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai");
-      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
-      endpoint = PROXYAPI_HOSTS.has(parsedHost) ? "https://api.proxyapi.ru/openai/v1/chat/completions" : base.endsWith("/v1") ? `${base}/chat/completions` : base.endsWith("/chat/completions") ? base : `${base}/v1/chat/completions`;
-      reqHeaders["Authorization"] = `Bearer ${settings.apiKey.trim()}`;
-      requestBody = { model: settings.model, messages: [{ role: "system", content: systemPrompt }, ...chatMessages], max_tokens: maxTokens };
-    } else {
-      const base = rawBase || (import.meta.env.VITE_DEFAULT_CLAUDE_BASE || "https://api.proxyapi.ru/anthropic");
-      const parsedHost = base.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
-      endpoint = PROXYAPI_HOSTS.has(parsedHost) ? "https://api.proxyapi.ru/anthropic/v1/messages" : base.endsWith("/v1") ? `${base}/messages` : base.endsWith("/messages") ? base : `${base}/v1/messages`;
-      reqHeaders["x-api-key"] = settings.apiKey.trim();
-      reqHeaders["anthropic-version"] = "2023-06-01";
-      requestBody = { model: settings.model, max_tokens: maxTokens, system: systemPrompt, messages: chatMessages };
+    switch (settings.provider) {
+        case "openai":
+            endpoint = useProxy ? "https://api.proxyapi.ru/openai/v1/chat/completions" : `${base}/v1/chat/completions`;
+            reqHeaders["Authorization"] = `Bearer ${settings.apiKey.trim()}`;
+            requestBody = { model: settings.model, messages: [{ role: "system", content: systemPrompt }, ...chatMessages], max_tokens: maxTokens };
+            break;
+
+        case "claude":
+            endpoint = useProxy ? "https://api.proxyapi.ru/anthropic/v1/messages" : `${base}/v1/messages`;
+            reqHeaders["x-api-key"] = settings.apiKey.trim();
+            reqHeaders["anthropic-version"] = "2023-06-01";
+            requestBody = { model: settings.model, max_tokens: maxTokens, system: systemPrompt, messages: chatMessages };
+            break;
+
+        case "google":
+            endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.googleGeminiKey.trim()}`;
+            // Google does not use a system prompt in the same way. We prepend it to the user's message.
+            const googleMessages = chatMessages.map((m, i) => i === chatMessages.length - 1 
+                ? { ...m, content: `${systemPrompt}\n\n${m.content}` } 
+                : m);
+            requestBody = { contents: googleMessages.map(m => ({ role: m.role, parts: [{ text: m.content }] })) };
+            break;
+
+        case "deepseek":
+            endpoint = "https://api.deepseek.com/chat/completions";
+            reqHeaders["Authorization"] = `Bearer ${settings.deepseekApiKey.trim()}`;
+            requestBody = { model: settings.model, messages: [{ role: "system", content: systemPrompt }, ...chatMessages], max_tokens: maxTokens };
+            break;
+
+        default:
+            throw new Error(`Неизвестный провайдер: ${settings.provider}`);
     }
 
     const controller = new AbortController();
@@ -120,7 +138,20 @@ export function useChatLogic({
       throw new Error(`HTTP ${res.status}: ${detail || rawText.slice(0, 300)}`);
     }
 
-    const content = isOpenAI ? (data.choices as any)?.[0]?.message?.content : (data.content as any)?.[0]?.text;
+    let content: string | undefined;
+    switch (settings.provider) {
+        case "openai":
+        case "deepseek":
+            content = (data.choices as any)?.[0]?.message?.content;
+            break;
+        case "claude":
+            content = (data.content as any)?.[0]?.text;
+            break;
+        case "google":
+            content = (data.candidates as any)?.[0]?.content?.parts?.[0]?.text;
+            break;
+    }
+
     if (!content) throw new Error("ИИ вернул пустой ответ. Проверьте настройки модели.");
     return content;
   };
@@ -206,9 +237,10 @@ export function useChatLogic({
     setDeployResult(null);
     setPendingSql(null);
 
-    if (!settings.apiKey) {
-      setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "API-ключ не найден. Администратору необходимо его ввести." }]);
-      return;
+    const activeApiKey = settings.provider === 'google' ? settings.googleGeminiKey : settings.provider === 'deepseek' ? settings.deepseekApiKey : settings.apiKey;
+    if (!activeApiKey) {
+        setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "API-ключ для выбранного провайдера не найден. Администратору необходимо его ввести." }]);
+        return;
     }
 
     try {
@@ -273,7 +305,7 @@ export function useChatLogic({
       const injectBaseHref = (html: string, baseUrl: string): string => {
         if (!baseUrl) return html;
         const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-        if (/<base\s[^>]*href/i.test(html)) return html.replace(/<base\s[^>]*href=['"][^'"]*[''][^>]*>/i, `<base href=\"${base}\"/>`);
+        if (/<base\s[^>]*href/i.test(html)) return html.replace(/<base\s[^>]*href=['\"][^\'\"]*['\'][^>]*>/i, `<base href=\"${base}\"/>`);
         if (/<head>/i.test(html)) return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\"/>`);
         return html;
       };

@@ -28,7 +28,9 @@ export interface Message {
 
 export interface Settings {
   apiKey: string;
-  provider: "openai" | "claude";
+  googleGeminiKey: string;
+  deepseekApiKey: string;
+  provider: "openai" | "claude" | "google" | "deepseek";
   model: string;
   baseUrl: string;
   proxyUrl: string;
@@ -37,6 +39,8 @@ export interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
+  googleGeminiKey: "",
+  deepseekApiKey: "",
   provider: "openai",
   model: "gpt-4o-mini",
   baseUrl: import.meta.env.VITE_DEFAULT_OPENAI_BASE || "https://api.proxyapi.ru/openai/v1",
@@ -133,14 +137,14 @@ export default function LumenApp() {
   const fullCodeContext: { html: string; fileName: string } | null = null;
   const [activeTab, setActiveTab] = useState<Tab>("home");
 
-  const [settings] = useState<Settings>(() => {
+  const settings = useMemo<Settings>(() => {
     try {
       const saved = localStorage.getItem("lumen_settings");
-      return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
-  });
+  }, []);
 
   const [selfEditMode, setSelfEditMode] = useState<boolean>(() => {
     try {
