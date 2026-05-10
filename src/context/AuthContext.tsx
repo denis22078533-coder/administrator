@@ -54,8 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "me", token: t }),
       });
-      const text = await res.text();
-      const data = JSON.parse(typeof JSON.parse(text) === "string" ? JSON.parse(text) : text);
+      const data = await res.json();
       if (data.user) setUser(data.user);
       else {
         localStorage.removeItem("moto_token");
@@ -75,9 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "login", login: loginVal, password }),
       });
-      const text = await res.text();
-      const raw = JSON.parse(text);
-      const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+      const data = await res.json();
       if (data.error) return { error: data.error };
       setToken(data.token);
       setUser(data.user);
@@ -96,9 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "register", ...form }),
       });
-      const text = await res.text();
-      const raw = JSON.parse(text);
-      const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+      const data = await res.json();
       if (data.error) return { error: data.error };
       setToken(data.token);
       setUser(data.user);

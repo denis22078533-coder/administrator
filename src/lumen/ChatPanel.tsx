@@ -6,6 +6,8 @@ import CoreTab from "./CoreTab";
 import { generateMusic } from "./services/SunoService"; // Импортируем сервис
 import { useApiAuth } from "./useApiAuth"; // Импортируем для токена
 
+const generateUniqueId = () => Date.now() + Math.random();
+
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
 export type ChatMode = "chat" | "image" | "site" | "core" | "music"; // Добавляем 'music'
 
@@ -195,17 +197,17 @@ export default function ChatPanel({
     // Если режим - музыка, вызываем наш новый сервис
     if (mode === 'music') {
         if (!token) {
-            onNewMessage({ id: Date.now(), role: 'assistant', text: 'Ошибка: вы не авторизованы.' });
+            onNewMessage({ id: generateUniqueId(), role: 'assistant', text: 'Ошибка: вы не авторизованы.' });
             return;
         }
 
         const result = await generateMusic(sendText, token);
 
         if (result.error) {
-            onNewMessage({ id: Date.now(), role: 'assistant', text: `Ошибка: ${result.error}` });
+            onNewMessage({ id: generateUniqueId(), role: 'assistant', text: `Ошибка: ${result.error}` });
         } else if (result.audio_url) {
             onNewMessage({
-                id: Date.now(),
+                id: generateUniqueId(),
                 role: 'assistant',
                 text: `Ваш трек готов!`,
                 html: `__MUSIC__:${result.audio_url}` // Специальный префикс для музыки

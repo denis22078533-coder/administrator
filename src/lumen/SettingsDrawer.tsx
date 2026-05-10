@@ -43,7 +43,7 @@ interface Props {
 type Tab = "ai" | "github" | "engine" | "admin";
 
 const ALL_TABS: [Tab, string, string][] = [
-  ["ai", "ИИ", "Cpu"],
+  ["ai", "ИИ", "Cog"],
   ["github", "GitHub", "Globe"],
   ["engine", "Engine", "Terminal"],
   ["admin", "Админ", "Shield"],

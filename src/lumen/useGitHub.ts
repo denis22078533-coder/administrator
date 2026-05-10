@@ -37,31 +37,18 @@ export interface FetchResult {
   message?: string;
 }
 
-// Утилита для выполнения запросов через прокси
-async function fetchViaProxy(url: string, method: string, token: string, body?: any): Promise<Response> {
-    const proxyUrl = `https://югазин.рф/api/github/proxy.php`;
-    const authToken = localStorage.getItem("lumen_token");
-
+async function fetchGitHubAPI(url: string, method: string, token: string, body?: any): Promise<Response> {
     const headers = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
     };
 
-    const payload = {
-        url,
-        method,
-        github_token: token,
-        body: body ? JSON.stringify(body) : null,
-        headers: {
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28'
-        }
-    };
-    
-    return fetch(proxyUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
+    return fetch(url, {
+        method: method,
+        headers: headers,
+        body: body ? JSON.stringify(body) : null
     });
 }
 
@@ -89,7 +76,7 @@ export function useGitHub(isAdminMode: boolean) {
     let currentSha = initialSha;
 
     try {
-      const getRes = await fetchViaProxy(`${apiUrl}?ref=main`, 'GET', token);
+      const getRes = await fetchGitHubAPI(`${apiUrl}?ref=main`, 'GET', token);
       if (getRes.ok) {
         currentSha = (await getRes.json()).sha;
       }
@@ -106,7 +93,7 @@ export function useGitHub(isAdminMode: boolean) {
       reqBody.sha = currentSha;
     }
 
-    const res = await fetchViaProxy(apiUrl, 'PUT', token, reqBody);
+    const res = await fetchGitHubAPI(apiUrl, 'PUT', token, reqBody);
 
     if (res.ok) {
       return { ok: true, message: `Файл ${path} успешно обновлен` };
@@ -151,7 +138,7 @@ export function useGitHub(isAdminMode: boolean) {
 
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=main`;
     try {
-      const res = await fetchViaProxy(apiUrl, 'GET', token);
+      const res = await fetchGitHubAPI(apiUrl, 'GET', token);
 
       if (res.status === 404) {
         return { ok: true, html: "", sha: "", filePath: path, message: "Файл не найден. Начните с чистого листа." };
@@ -188,7 +175,7 @@ export function useGitHub(isAdminMode: boolean) {
 
     try {
         const treeUrl = `https://api.github.com/repos/${sourceRepo}/git/trees/${branch}?recursive=1`;
-        const treeRes = await fetchViaProxy(treeUrl, 'GET', sourceToken);
+        const treeRes = await fetchGitHubAPI(treeUrl, 'GET', sourceToken);
         if (!treeRes.ok) throw new Error(`Не удалось получить дерево файлов: ${treeRes.statusText}`);
         
         const treeData = await treeRes.json();
@@ -201,7 +188,7 @@ export function useGitHub(isAdminMode: boolean) {
             onProgress?.(`(${i + 1}/${files.length}) Загрузка ${file.path}...`);
             
             const blobUrl = `https://api.github.com/repos/${sourceRepo}/git/blobs/${file.sha}`;
-            const blobRes = await fetchViaProxy(blobUrl, 'GET', sourceToken);
+            const blobRes = await fetchGitHubAPI(blobUrl, 'GET', sourceToken);
             if (!blobRes.ok) throw new Error(`Не удалось загрузить файл ${file.path}`);
             
             const blobData = await blobRes.json();
