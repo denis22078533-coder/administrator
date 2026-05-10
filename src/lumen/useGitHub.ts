@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react";
+import JSZip from 'jszip';
 
 const STORAGE_KEY = "lumen_github";
 
 export interface GitHubSettings {
   token: string;
   repo: string;
-  filePath: string;
+  filePath: string; // This will be the root path for multi-file projects
   siteUrl: string;
   engineToken: string;
   engineRepo: string;
@@ -15,7 +16,7 @@ export interface GitHubSettings {
 const DEFAULT: GitHubSettings = {
   token: "",
   repo: "denis22078533-coder/muravey",
-  filePath: "index.html",
+  filePath: "/", 
   siteUrl: "",
   engineToken: "",
   engineRepo: "denis22078533-coder/administrator",
@@ -29,11 +30,15 @@ function load(): GitHubSettings {
   } catch { return DEFAULT; }
 }
 
-export interface GitHubFile {
+export interface ProjectFile {
+    path: string;
+    content: string;
+    sha?: string;
+}
+
+export interface FetchResult {
   ok: boolean;
-  html: string;
-  sha: string;
-  filePath: string;
+  files: ProjectFile[];
   message?: string;
 }
 
@@ -60,157 +65,136 @@ export function useGitHub(isAdminMode: boolean) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
   }, []);
 
-  const privatePush = useCallback(async (
-    html: string,
-    initialSha: string,
-    path: string,
-    repo: string,
-    token: string,
-    commitMessage: string
-  ): Promise<{ ok: boolean; message: string }> => {
+  const fetchFromGitHub = useCallback(async (repoPath: string, branch: string = 'main'): Promise<FetchResult> => {
+    const { token } = ghSettings;
+    const repo = repoPath || ghSettings.repo;
     if (!token || !repo) {
-      return { ok: false, message: "Токен или репозиторий не настроен" };
+      return { ok: false, files: [], message: "Нет токена или репозитория" };
     }
 
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-    let currentSha = initialSha;
-
+    const treeUrl = `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`;
     try {
-      const getRes = await fetchGitHubAPI(`${apiUrl}?ref=main`, 'GET', token);
-      if (getRes.ok) {
-        currentSha = (await getRes.json()).sha;
-      }
-    } catch (e) { /* Файл не существует, будет создан новый */ }
+        const treeRes = await fetchGitHubAPI(treeUrl, 'GET', token);
+        if (!treeRes.ok) {
+             const err = await treeRes.json().catch(() => ({}));
+             if (treeRes.status === 404 || err.message?.includes("Git Repository is empty")) {
+                 return { ok: true, files: [] };
+             }
+            throw new Error(`Не удалось получить дерево файлов: ${err.message || treeRes.statusText}`);
+        }
+        
+        const treeData = await treeRes.json();
+        const filesToFetch = treeData.tree.filter((item: any) => item.type === 'blob' && !item.path.startsWith('.git'));
+        
+        const fetchedFiles: ProjectFile[] = [];
 
-    const content = btoa(new TextDecoder("utf-8").decode(new TextEncoder().encode(html)));
+        for (const file of filesToFetch) {
+            const blobUrl = `https://api.github.com/repos/${repo}/git/blobs/${file.sha}`;
+            const blobRes = await fetchGitHubAPI(blobUrl, 'GET', token);
+            if (blobRes.ok) {
+                const blobData = await blobRes.json();
+                const content = atob(blobData.content);
+                fetchedFiles.push({ path: file.path, content, sha: file.sha });
+            } else {
+                console.warn(`Не удалось загрузить файл ${file.path}`);
+            }
+        }
 
-    const reqBody: { message: string; content: string; branch: string; sha?: string } = {
-      message: commitMessage,
-      content,
-      branch: "main",
-    };
-    if (currentSha) {
-      reqBody.sha = currentSha;
-    }
+        return { ok: true, files: fetchedFiles };
 
-    const res = await fetchGitHubAPI(apiUrl, 'PUT', token, reqBody);
-
-    if (res.ok) {
-      return { ok: true, message: `Файл ${path} успешно обновлен` };
-    } else {
-      const err = await res.json().catch(() => ({}));
-      return { ok: false, message: `Ошибка GitHub: ${err.message || res.statusText}` };
-    }
-  }, []);
-
-
-  const pushToGitHub = useCallback(async (
-    html: string,
-    sha: string,
-    filePath: string
-  ): Promise<{ ok: boolean; message: string }> => {
-    
-    if (isAdminMode) {
-      // Режим АДМИНИСТРАТОРА: выгрузка в репозиторий платформы
-      return privatePush(html, sha, filePath, ghSettings.engineRepo, ghSettings.engineToken, `Lumen: правки в ${filePath}`);
-    }
-
-    // Режим ПОЛЬЗОВАТЕЛЯ: выгрузка в репозиторий пользователя
-    // 1. Проверка безопасности: запрет записи в репозиторий администратора
-    if (ghSettings.repo === ghSettings.engineRepo) {
-      return { ok: false, message: "Ошибка: В пользовательском режиме нельзя записывать в репозиторий администратора." };
-    }
-    // 2. Путь всегда "index.html"
-    const targetPath = "index.html";
-    return privatePush(html, sha, targetPath, ghSettings.repo, ghSettings.token, `Lumen: правки в ${targetPath}`);
-
-  }, [ghSettings, isAdminMode, privatePush]);
-
-
-  const fetchFromGitHub = useCallback(async (): Promise<GitHubFile> => {
-    // "Загрузить" всегда читает index.html из репозитория ПОЛЬЗОВАТЕЛЯ (muravey)
-    const { token, repo } = ghSettings;
-    const path = "index.html"; 
-
-    if (!token || !repo) {
-      return { ok: false, html: "", sha: "", filePath: path, message: "Нет токена или репозитория" };
-    }
-
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=main`;
-    try {
-      const res = await fetchGitHubAPI(apiUrl, 'GET', token);
-
-      if (res.status === 404) {
-        return { ok: true, html: "", sha: "", filePath: path, message: "Файл не найден. Начните с чистого листа." };
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        return { ok: false, html: "", sha: "", filePath: path, message: `Ошибка GitHub: ${err.message || res.statusText}` };
-      }
-
-      const data = await res.json();
-      const decoded = atob(data.content);
-      
-      return { ok: true, html: decoded, sha: data.sha, filePath: path };
     } catch (e: any) {
-      return { ok: false, html: "", sha: "", filePath: path, message: `Сетевая ошибка: ${e.message}` };
+        return { ok: false, files: [], message: `Сетевая ошибка: ${e.message}` };
     }
   }, [ghSettings]);
 
-  
-  const syncEngine = useCallback(async (
-    onProgress?: (msg: string) => void
+  const pushToGitHub = useCallback(async (
+    files: ProjectFile[],
+    commitMessage: string
   ): Promise<{ ok: boolean; message: string }> => {
-    const sourceToken = ghSettings.engineToken;
-    const sourceRepo = ghSettings.engineRepo;
-    const targetToken = ghSettings.token;
-    const targetRepo = ghSettings.repo;
-    const branch = ghSettings.engineBranch || 'main';
 
-    if (!sourceToken || !sourceRepo || !targetToken || !targetRepo) {
-      return { ok: false, message: "Не все токены и репозитории настроены для синхронизации" };
+    const token = isAdminMode ? ghSettings.engineToken : ghSettings.token;
+    const targetRepo = isAdminMode ? ghSettings.engineRepo : ghSettings.repo;
+
+    if (!token || !targetRepo) {
+      return { ok: false, message: "Токен или репозиторий не настроен" };
     }
-
-    onProgress?.("Получение списка файлов из репозитория администратора...");
+    if (isAdminMode === false && targetRepo === ghSettings.engineRepo) {
+        return { ok: false, message: "Ошибка: В пользовательском режиме нельзя записывать в репозиторий администратора." };
+    }
 
     try {
-        const treeUrl = `https://api.github.com/repos/${sourceRepo}/git/trees/${branch}?recursive=1`;
-        const treeRes = await fetchGitHubAPI(treeUrl, 'GET', sourceToken);
-        if (!treeRes.ok) throw new Error(`Не удалось получить дерево файлов: ${treeRes.statusText}`);
-        
-        const treeData = await treeRes.json();
-        const files = treeData.tree.filter((item: any) => item.type === 'blob' && !item.path.startsWith('.git'));
+        const refUrl = `https://api.github.com/repos/${targetRepo}/git/ref/heads/main`;
+        const refRes = await fetchGitHubAPI(refUrl, 'GET', token);
+        if (!refRes.ok) throw new Error("Не удалось получить SHA последнгего коммита.");
+        const refData = await refRes.json();
+        const latestCommitSha = refData.object.sha;
 
-        onProgress?.(`Найдено ${files.length} файлов. Начало синхронизации...`);
+        const commitUrl = `https://api.github.com/repos/${targetRepo}/git/commits/${latestCommitSha}`;
+        const commitRes = await fetchGitHubAPI(commitUrl, 'GET', token);
+        if (!commitRes.ok) throw new Error("Не удалось получить детали коммита.");
+        const commitData = await commitRes.json();
+        const baseTreeSha = commitData.tree.sha;
 
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            onProgress?.(`(${i + 1}/${files.length}) Загрузка ${file.path}...`);
-            
-            const blobUrl = `https://api.github.com/repos/${sourceRepo}/git/blobs/${file.sha}`;
-            const blobRes = await fetchGitHubAPI(blobUrl, 'GET', sourceToken);
-            if (!blobRes.ok) throw new Error(`Не удалось загрузить файл ${file.path}`);
-            
-            const blobData = await blobRes.json();
-            const decodedContent = atob(blobData.content);
+        const tree = files.map(file => ({
+            path: file.path,
+            mode: '100644',
+            type: 'blob',
+            content: file.content,
+        }));
 
-            onProgress?.(`(${i + 1}/${files.length}) Сохранение ${file.path} в репозиторий пользователя...`);
-            const pushResult = await privatePush(decodedContent, "", file.path, targetRepo, targetToken, `Синхронизация: ${file.path}`);
+        const createTreeUrl = `https://api.github.com/repos/${targetRepo}/git/trees`;
+        const createTreeRes = await fetchGitHubAPI(createTreeUrl, 'POST', token, { tree, base_tree: baseTreeSha });
+        if (!createTreeRes.ok) throw new Error("Не удалось создать новое дерево файлов.");
+        const newTreeData = await createTreeRes.json();
+        const newTreeSha = newTreeData.sha;
 
-            if (!pushResult.ok) {
-                throw new Error(`Не удалось сохранить ${file.path}: ${pushResult.message}`);
-            }
-        }
-        const finalMessage = `Синхронизация успешно завершена. ${files.length} файлов обновлено.`;
-        onProgress?.(finalMessage);
-        return { ok: true, message: finalMessage };
+        const createCommitUrl = `https://api.github.com/repos/${targetRepo}/git/commits`;
+        const createCommitRes = await fetchGitHubAPI(createCommitUrl, 'POST', token, {
+            message: commitMessage,
+            tree: newTreeSha,
+            parents: [latestCommitSha],
+        });
+        if (!createCommitRes.ok) throw new Error("Не удалось создать новый коммит.");
+        const newCommitData = await createCommitRes.json();
+        const newCommitSha = newCommitData.sha;
+
+        const updateRefUrl = `https://api.github.com/repos/${targetRepo}/git/refs/heads/main`;
+        const updateRefRes = await fetchGitHubAPI(updateRefUrl, 'PATCH', token, { sha: newCommitSha });
+        if (!updateRefRes.ok) throw new Error("Не удалось обновить ветку.");
+
+        return { ok: true, message: `Проект успешно сохранен в ${targetRepo}` };
+
     } catch (e: any) {
-        const errorMessage = `Ошибка синхронизации: ${e.message}`;
-        onProgress?.(errorMessage);
-        return { ok: false, message: errorMessage };
+        return { ok: false, message: `Ошибка GitHub: ${e.message}` };
     }
-  }, [ghSettings, privatePush]);
+  }, [ghSettings, isAdminMode]);
+  
+    const downloadProjectAsZip = useCallback(async (repo: string) => {
+        try {
+            const result = await fetchFromGitHub(repo);
+            if (!result.ok || result.files.length === 0) {
+                throw new Error(result.message || 'Не удалось загрузить файлы проекта.');
+            }
+            
+            const zip = new JSZip();
+            result.files.forEach(file => {
+                zip.file(file.path, file.content);
+            });
 
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            const repoName = repo.split('/').pop() || 'project';
+            link.download = `${repoName}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
 
-  return { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, syncEngine };
+        } catch (error: any) {
+            console.error("Ошибка при скачивании проекта:", error);
+        }
+    }, [fetchFromGitHub]);
+
+  return { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip };
 }

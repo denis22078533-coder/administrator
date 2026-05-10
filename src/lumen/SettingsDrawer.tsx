@@ -4,7 +4,6 @@ import Icon from "@/components/ui/icon";
 import { GitHubSettings } from "./useGitHub";
 import AITab from "./settings/AITab";
 import GitHubTab from "./settings/GitHubTab";
-import EngineTab from "./settings/EngineTab";
 import AdminTab from "./settings/AdminTab";
 
 interface AISettings {
@@ -29,42 +28,38 @@ interface Props {
   onSelfEditToggle: (v: boolean) => void;
   publicAiEnabled: boolean;
   onPublicAiToggle: (v: boolean) => void;
-  onSyncEngine?: () => void;
-  syncingEngine?: boolean;
   onLoadZip?: () => void;
   convertingZip?: boolean;
   isAdmin: boolean;
   isTesterMode: boolean;
   onToggleTesterMode: () => void;
   onResetBalance: () => void;
-  isFullPage?: boolean; // New prop for full-page mode
+  isFullPage?: boolean;
 }
 
-type Tab = "ai" | "github" | "engine" | "admin";
+type Tab = "ai" | "github" | "admin";
 
 const ALL_TABS: [Tab, string, string][] = [
   ["ai", "ИИ", "Cog"],
   ["github", "GitHub", "Globe"],
-  ["engine", "Engine", "Terminal"],
   ["admin", "Админ", "Shield"],
 ];
 
 export default function SettingsDrawer({
   open, onClose, settings, onSave, ghSettings, onSaveGh,
   selfEditMode, onSelfEditToggle, publicAiEnabled, onPublicAiToggle,
-  onSyncEngine, syncingEngine, onLoadZip, convertingZip,
+  onLoadZip, convertingZip,
   isAdmin,
   isTesterMode,
   onToggleTesterMode,
   onResetBalance,
-  isFullPage = false, // Default to false
+  isFullPage = false,
 }: Props) {
   const [tab, setTab] = useState<Tab>("ai");
   const [form, setForm] = useState(settings);
   const [ghForm, setGhForm] = useState(ghSettings);
   const [showKey, setShowKey] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [showEngineToken, setShowEngineToken] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -78,7 +73,6 @@ export default function SettingsDrawer({
 
   const content = (
     <div className={`flex flex-col ${isFullPage ? '' : 'h-full'}`}>
-      {/* Header */}
       {!isFullPage && (
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
@@ -99,7 +93,6 @@ export default function SettingsDrawer({
         </div>
       )}
 
-      {/* Tabs */}
       <div className={`flex border-b border-white/[0.06] px-5 pt-3 gap-5 ${isFullPage ? 'mb-5' : ''}`}>
         {TABS.map(([key, lbl, ico]) => (
           <button
@@ -117,7 +110,6 @@ export default function SettingsDrawer({
         ))}
       </div>
 
-      {/* Body */}
       <div className={`flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5 ${isFullPage ? 'overflow-visible' : ''}`}>
         {tab === "ai" && (
           <AITab
@@ -134,24 +126,12 @@ export default function SettingsDrawer({
             setGhForm={setGhForm}
             showToken={showToken}
             setShowToken={setShowToken}
-          />
-        )}
-
-        {tab === "engine" && (
-          <EngineTab
-            ghForm={ghForm}
-            setGhForm={setGhForm}
-            showEngineToken={showEngineToken}
-            setShowEngineToken={setShowEngineToken}
             publicAiEnabled={publicAiEnabled}
             onPublicAiToggle={onPublicAiToggle}
             selfEditMode={selfEditMode}
             onSelfEditToggle={onSelfEditToggle}
-            syncingEngine={syncingEngine}
-            onSyncEngine={onSyncEngine}
             onLoadZip={onLoadZip}
             convertingZip={convertingZip}
-            onSaveAndSync={handleSave}
           />
         )}
         
@@ -164,7 +144,6 @@ export default function SettingsDrawer({
         )}
       </div>
 
-      {/* Footer */}
       <div className={`${isFullPage ? 'mt-6' : 'px-5 py-4 border-t border-white/[0.06]'}`}>
         <motion.button
           whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}

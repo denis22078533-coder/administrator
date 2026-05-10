@@ -8,7 +8,7 @@ import {
 import { MusicService } from "../lib/MusicService";
 import type { Message, Settings } from "./LumenApp";
 import type { ChatMode } from "./ChatPanel";
-import type { GitHubSettings, GitHubFile } from "./useGitHub";
+import type { GitHubSettings, ProjectFile } from "./useGitHub";
 
 type CycleStatus = "idle" | "reading" | "generating" | "done" | "error";
 
@@ -21,14 +21,11 @@ interface UseChatLogicProps {
   ghSettings: GitHubSettings;
   adminMode: boolean;
   selfEditMode: boolean;
-  fullCodeContext: { html: string; fileName: string } | null;
-  currentFile: GitHubFile | null;
+  fullCodeContext: { html: string; files: ProjectFile[] };
   liveUrl: string;
-  fetchFromGitHub: () => Promise<any>;
-  pushToGitHub: (content: string, sha: string, path: string) => Promise<{ ok: boolean; message: string }>;
   savePreviewHtml: (html: string | null) => void;
   setMobileTab: (tab: "chat" | "preview") => void;
-  setCurrentFile: (file: GitHubFile | null) => void;
+  onApplyToGitHub: () => Promise<{ ok: boolean, message: string }>;
 }
 
 export function useChatLogic({
@@ -37,13 +34,10 @@ export function useChatLogic({
   adminMode,
   selfEditMode,
   fullCodeContext,
-  currentFile,
   liveUrl,
-  fetchFromGitHub,
-  pushToGitHub,
   savePreviewHtml,
   setMobileTab,
-  setCurrentFile,
+  onApplyToGitHub,
 }: UseChatLogicProps) {
   const [cycleStatus, setCycleStatus] = useState<CycleStatus>("idle");
   const [cycleLabel, setCycleLabel] = useState("");
@@ -97,7 +91,6 @@ export function useChatLogic({
 
         case "google":
             endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.googleGeminiKey.trim()}`;
-            // Google does not use a system prompt in the same way. We prepend it to the user's message.
             const googleMessages = chatMessages.map((m, i) => i === chatMessages.length - 1 
                 ? { ...m, content: `${systemPrompt}\n\n${m.content}` } 
                 : m);
@@ -261,35 +254,16 @@ export function useChatLogic({
       }
 
       // Default mode: "site"
-      let currentHtml = "";
+      const currentHtml = fullCodeContext?.html || "";
       const customAddition = settings.customPrompt?.trim() ? `\n\n## Дополнительные инструкции:\n${settings.customPrompt.trim()}` : "";
-      let systemPrompt = CREATE_SYSTEM_PROMPT + customAddition;
-
-      if (fullCodeContext) {
-        currentHtml = fullCodeContext.html;
-        systemPrompt = LOCAL_FILE_EDIT_PROMPT(currentHtml, fullCodeContext.fileName) + customAddition;
-      } else if (ghSettings.token && ghSettings.repo) {
-        setCycleStatus("reading");
-        const filePath = (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
-        setCycleLabel(`Читаю ${filePath} из GitHub...`);
-        const fetched = await fetchFromGitHub();
-        if (fetched.ok && fetched.html) {
-          currentHtml = fetched.html;
-          setCurrentFile(fetched);
-          systemPrompt = EDIT_SYSTEM_PROMPT_FULL(currentHtml) + customAddition;
-        } else {
-          setCycleStatus("error");
-          setCycleLabel("");
-          setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: `Не удалось загрузить файл: ${fetched.message || 'Неизвестная ошибка GitHub'}` }]);
-          return;
-        }
-      }
+      let systemPrompt = currentHtml ? EDIT_SYSTEM_PROMPT_FULL(currentHtml) : CREATE_SYSTEM_PROMPT;
+      systemPrompt += customAddition;
 
       if (abortRef.current) return;
 
       setCycleStatus("generating");
       setCycleLabel("Создаю сайт...");
-      const passHistory = !!(fullCodeContext || (ghSettings.token && ghSettings.repo && currentHtml));
+      const passHistory = !!currentHtml;
       const rawResponse = await callAI(systemPrompt, text, passHistory);
       
       const { text: chatText, artifact: cleanHtml } = extractArtifact(rawResponse);
@@ -302,34 +276,12 @@ export function useChatLogic({
 
       if (abortRef.current) return;
       
-      const injectBaseHref = (html: string, baseUrl: string): string => {
-        if (!baseUrl) return html;
-        const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-        if (/<base\s[^>]*href/i.test(html)) return html.replace(/<base\s[^>]*href=['\"][^\'\"]*['\'][^>]*>/i, `<base href=\"${base}\"/>`);
-        if (/<head>/i.test(html)) return html.replace(/<head>/i, `<head>\n  <base href=\"${base}\"/>`);
-        return html;
-      };
-
-      const htmlWithBase = liveUrl ? injectBaseHref(cleanHtml, liveUrl) : cleanHtml;
-      savePreviewHtml(htmlWithBase);
+      savePreviewHtml(cleanHtml);
       setMobileTab("preview");
 
       const assistantId = ++msgCounter;
       setMessages(prev => [...prev, { id: assistantId, role: "assistant", text: chatText, html: cleanHtml }]);
 
-      if (ghSettings.token && ghSettings.repo) {
-        setCycleLabel("Загружаю в GitHub...");
-        const filePath = currentFile?.filePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
-        const pushResult = await pushToGitHub(cleanHtml, currentFile?.sha || "", filePath);
-        if (pushResult.ok) {
-          try {
-            const fresh = await fetchFromGitHub();
-            if (fresh.ok) setCurrentFile(fresh);
-          } catch {}
-        }
-        setDeployResult({ id: assistantId, ...pushResult });
-        setTimeout(() => setDeployResult(null), pushResult.ok ? 8000 : 30000);
-      }
       setCycleStatus("done");
       setCycleLabel("");
 
@@ -341,22 +293,17 @@ export function useChatLogic({
       }
     }
   }, [
-    settings, ghSettings, fullCodeContext, currentFile, liveUrl, adminMode, selfEditMode, messages,
-    fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile,
-    handleSendMusic, handleSendImage, handleSqlRequest
+    settings, ghSettings, fullCodeContext, liveUrl, adminMode, selfEditMode, messages,
+    savePreviewHtml, setMobileTab, handleSendMusic, handleSendImage, handleSqlRequest
   ]);
-  
-  const handleNewMessage = (message: Message) => {
-    setMessages(prev => [...prev, message]);
-  };
-  
+    
   const handleStop = () => {
     abortRef.current = true;
     setCycleStatus("idle");
     setCycleLabel("");
   };
 
-  const handleApply = useCallback(async (msgId: number, html: string) => {
+  const handleApply = useCallback(async (msgId: number) => {
     if (!ghSettings.token) {
         setMessages(prev => [...prev, { id: ++msgCounter, role: "assistant", text: "GitHub-репозиторий не настроен." }]);
         return;
@@ -364,23 +311,17 @@ export function useChatLogic({
     setDeployingId(msgId);
     setDeployResult(null);
 
-    const filePath = currentFile?.filePath || (ghSettings.filePath || "index.html").trim().replace(/^\//, "");
     setCycleStatus("generating");
-    setCycleLabel(`Сохраняю ${filePath} в GitHub...`);
+    setCycleLabel(`Сохраняю проект в GitHub...`);
 
-    const result = await pushToGitHub(html, currentFile?.sha || "", filePath);
-    if (result.ok) {
-      try {
-        const fresh = await fetchFromGitHub();
-        if (fresh.ok) setCurrentFile(fresh);
-      } catch {}
-    }
+    const result = await onApplyToGitHub();
+
     setCycleStatus(result.ok ? "done" : "error");
     setCycleLabel("");
     setDeployingId(null);
     setDeployResult({ id: msgId, ...result });
     setTimeout(() => setDeployResult(null), result.ok ? 6000 : 30000);
-  }, [ghSettings, pushToGitHub, fetchFromGitHub, currentFile, setCurrentFile]);
+  }, [ghSettings, onApplyToGitHub]);
 
 
   return {
@@ -391,10 +332,8 @@ export function useChatLogic({
     deployResult,
     pendingSql,
     handleSend,
-    handleNewMessage,
     handleStop,
     handleApply,
     setMessages,
-    savePreviewHtml
   };
 }

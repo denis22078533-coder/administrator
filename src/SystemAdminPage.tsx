@@ -1,10 +1,10 @@
 
 import { useState } from 'react';
 import { useLumenAuth } from './lumen/useLumenAuth';
-import SettingsDrawer from './lumen/SettingsDrawer'; // We will repurpose this
+import SettingsDrawer from './lumen/SettingsDrawer';
 import { useGitHub } from './lumen/useGitHub';
 import { useNavigate } from 'react-router-dom';
-import Icon from '@/components/ui/icon'; // Added Icon import
+import Icon from '@/components/ui/icon';
 
 // This is a placeholder for the settings data structure
 interface Settings {
@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 const AdminLoginPage = ({ onLogin }: { onLogin: (p: string) => void }) => {
     const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false); // State for password visibility
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
 
     const handleLogin = () => {
@@ -87,9 +87,8 @@ const AdminLoginPage = ({ onLogin }: { onLogin: (p: string) => void }) => {
 export default function SystemAdminPage() {
     const navigate = useNavigate();
     const { adminMode, adminLogin } = useLumenAuth();
-    const { ghSettings, saveGhSettings, syncEngine } = useGitHub(true);
+    const { ghSettings, saveGhSettings } = useGitHub(true);
 
-    // Re-implementing state management that was in LumenApp
     const [settings, setSettings] = useState<Settings>(() => {
         try {
             const saved = localStorage.getItem("lumen_settings");
@@ -107,9 +106,6 @@ export default function SystemAdminPage() {
         try { return localStorage.getItem("lumen_public_ai") === "1"; } catch { return false; }
     });
     
-    const [syncingEngine, setSyncingEngine] = useState(false);
-
-
     const handleLogin = (password: string) => {
         adminLogin(password);
     };
@@ -129,27 +125,10 @@ export default function SystemAdminPage() {
         try { localStorage.setItem("lumen_public_ai", v ? "1" : "0"); } catch (_e) { /* ignore */ }
     };
     
-    const handleSyncEngine = async () => {
-        setSyncingEngine(true);
-        // This function is simplified as we don't have the full chat context here
-        alert("Запускаю синхронизацию Engine...");
-        try {
-            const result = await syncEngine((msg) => console.log(msg));
-            alert(result.message);
-        } catch (err) {
-            alert(`Ошибка Sync Engine: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-            setSyncingEngine(false);
-        }
-    };
-
-
     if (!adminMode) {
         return <AdminLoginPage onLogin={handleLogin} />;
     }
 
-    // Re-using SettingsDrawer as a full-page component
-    // We pass props to it as if it were still a drawer.
     return (
         <div className="bg-[#07070c] min-h-dvh text-white">
             <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -166,11 +145,10 @@ export default function SystemAdminPage() {
                     </button>
                 </div>
 
-                {/* We embed the logic from SettingsDrawer directly here */}
                 <div className="bg-[#121218] border border-white/10 rounded-2xl p-6">
                     <SettingsDrawer
-                        open={true} // It's always "open" on this page
-                        onClose={() => {}} // No-op
+                        open={true}
+                        onClose={() => {}}
                         settings={settings}
                         onSave={handleSaveSettings}
                         ghSettings={ghSettings}
@@ -179,15 +157,13 @@ export default function SystemAdminPage() {
                         onSelfEditToggle={handleSelfEditToggle}
                         publicAiEnabled={publicAiEnabled}
                         onPublicAiToggle={handlePublicAiToggle}
-                        onSyncEngine={handleSyncEngine}
-                        syncingEngine={syncingEngine}
                         onLoadZip={() => alert("Эта функция доступна только в основном интерфейсе.")}
                         convertingZip={false}
                         isAdmin={true}
-                        isTesterMode={false} // Placeholder
-                        onToggleTesterMode={() => {}} // Placeholder
-                        onResetBalance={() => {}} // Placeholder
-                        isFullPage={true} // A new prop to adjust styling
+                        isTesterMode={false}
+                        onToggleTesterMode={() => {}}
+                        onResetBalance={() => {}}
+                        isFullPage={true}
                     />
                 </div>
             </div>

@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
+import JSZip from 'jszip';
 import Icon from '@/components/ui/icon';
+import { useGitHub, ProjectFile } from './useGitHub';
 
 interface ProjectsPageProps {
   onSelectTemplate: (prompt: string) => void;
   onGoToChat: () => void;
   onSelectManagedProject: (project: { repo: string; siteUrl: string; }) => void;
+  onProjectLoaded: (files: ProjectFile[], repo: string) => void;
+  adminMode: boolean;
 }
 
 interface ProjectCardData {
@@ -18,21 +22,65 @@ interface ProjectCardData {
   siteUrl?: string;
 }
 
-const ProjectCard = ({ image, title, subtitle, large = false, onClick }: { image: string, title: string, subtitle: string, large?: boolean, onClick: () => void }) => (
-  <div 
+const ProjectCard = ({
+  image,
+  title,
+  subtitle,
+  large = false,
+  isManaged = false,
+  onClick,
+  onDownloadClick,
+  onUploadClick,
+}: {
+  image: string;
+  title: string;
+  subtitle: string;
+  large?: boolean;
+  isManaged?: boolean;
+  onClick: () => void;
+  onDownloadClick?: () => void;
+  onUploadClick?: () => void;
+}) => (
+  <div
     onClick={onClick}
     className={`relative w-full rounded-2xl overflow-hidden group cursor-pointer border border-white/[0.08] hover:border-white/20 transition-all ${large ? 'col-span-1 md:col-span-2 aspect-video' : 'aspect-[4/3]'}`}
   >
     <img src={image} alt={title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-        <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
-            <Icon name="Wand2" size={24} className="text-white" />
-        </div>
+      <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+        <Icon name="Wand2" size={24} className="text-white" />
+      </div>
     </div>
-    <div className="absolute bottom-0 left-0 p-4">
-      <h3 className={`font-bold text-white ${large ? 'text-2xl' : 'text-base'}`}>{title}</h3>
-      {subtitle && <p className={`text-white/60 ${large ? 'text-sm' : 'text-xs'}`}>{subtitle}</p>}
+    <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-between items-end">
+      <div>
+        <h3 className={`font-bold text-white ${large ? 'text-2xl' : 'text-base'}`}>{title}</h3>
+        {subtitle && <p className={`text-white/60 ${large ? 'text-sm' : 'text-xs'}`}>{subtitle}</p>}
+      </div>
+      {isManaged && (
+        <div className="flex items-center gap-2 flex-shrink-0 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownloadClick?.();
+            }}
+            className="px-2.5 py-1 bg-white/10 rounded-md text-xs text-white/70 hover:bg-white/20 transition-colors flex items-center gap-1.5"
+          >
+            <Icon name="Download" size={12}/>
+            Скачать
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUploadClick?.();
+            }}
+            className="px-2.5 py-1 bg-white/10 rounded-md text-xs text-white/70 hover:bg-white/20 transition-colors flex items-center gap-1.5"
+          >
+            <Icon name="Upload" size={12}/>
+            Загрузить
+          </button>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -74,7 +122,43 @@ const templates: ProjectCardData[] = [
   },
 ];
 
-const ProjectsPage = ({ onSelectTemplate, onGoToChat, onSelectManagedProject }: ProjectsPageProps) => {
+const ProjectsPage = ({ onSelectTemplate, onGoToChat, onSelectManagedProject, onProjectLoaded, adminMode }: ProjectsPageProps) => {
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const { downloadProjectAsZip } = useGitHub(adminMode);
+
+  const handleDownload = async (repo: string) => {
+    await downloadProjectAsZip(repo);
+  };
+
+  const handleUploadClick = () => {
+    uploadInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        const zip = await JSZip.loadAsync(file);
+        const files: ProjectFile[] = [];
+        for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+            if (!zipEntry.dir) {
+                const content = await zipEntry.async('string');
+                files.push({ path: relativePath, content });
+            }
+        }
+        // For now, we assume the first managed project is the target
+        const targetRepo = managedProjects[0].repo!;
+        onProjectLoaded(files, targetRepo);
+        
+      } catch (error) {
+          console.error("Ошибка при распаковке ZIP-архива:", error);
+      }
+    }
+     // Reset file input to allow selecting the same file again
+    if(event.target) {
+      event.target.value = '';
+    }
+  };
 
   return (
     <motion.div 
@@ -84,6 +168,13 @@ const ProjectsPage = ({ onSelectTemplate, onGoToChat, onSelectManagedProject }: 
       transition={{ duration: 0.3 }}
       className="h-full w-full p-4 md:p-6 overflow-y-auto"
     >
+       <input
+        type="file"
+        accept=".zip"
+        ref={uploadInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+      />
       <div className="mb-6 px-1">
         <h1 className="text-2xl font-bold text-white">Проекты</h1>
         <p className="text-white/40 text-sm">Начните с готового проекта, шаблона или чистого листа.</p>
@@ -111,7 +202,11 @@ const ProjectsPage = ({ onSelectTemplate, onGoToChat, onSelectManagedProject }: 
           <ProjectCard 
             key={project.title}
             {...project}
+            isManaged={true}
+            large={true}
             onClick={() => onSelectManagedProject({ repo: project.repo!, siteUrl: project.siteUrl! })}
+            onDownloadClick={() => handleDownload(project.repo!)}
+            onUploadClick={handleUploadClick}
           />
         ))}
       </div>

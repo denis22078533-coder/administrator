@@ -12,7 +12,7 @@ import ProfilePage from "./ProfilePage";
 import BottomNav, { Tab } from "@/components/BottomNav";
 import AntWorker from "./AntWorker";
 import CoreDashboard from "./CoreDashboard";
-import { useGitHub, GitHubFile } from "./useGitHub";
+import { useGitHub, ProjectFile } from "./useGitHub";
 import { useLumenAuth } from "./useLumenAuth";
 import { useChatLogic } from "./useChatLogic";
 
@@ -142,14 +142,16 @@ const injectCharset = (html: string): string => {
 export default function LumenApp() {
   const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
-  const [currentFile, setCurrentFile] = useState<GitHubFile | null>(null);
+  const { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
+  
+  // Multi-file project state
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [currentRepo, setCurrentRepo] = useState<string | null>(null);
 
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [htmlHistory, setHtmlHistory] = useState<string[]>([]);
   const [mobileTab, setMobileTab] = useState<"chat" | "preview">("chat");
-  const fullCodeContext: { html: string; fileName: string } | null = null;
   const [activeTab, setActiveTab] = useState<Tab>("home");
+
+  const indexHtmlFile = useMemo(() => projectFiles.find(f => f.path === 'index.html'), [projectFiles]);
 
   const settings = useMemo<Settings>(() => {
     try {
@@ -167,7 +169,7 @@ export default function LumenApp() {
     } catch { return false; }
   });
   
-    useEffect(() => {
+  useEffect(() => {
     if (!adminMode) {
       setSelfEditMode(false);
       try { localStorage.setItem("lumen_self_edit", "0"); } catch {}
@@ -183,32 +185,54 @@ export default function LumenApp() {
     return user && repo ? `https://${user}.github.io/${repo}/` : "";
   }, [ghSettings.repo, ghSettings.siteUrl]);
 
-  const savePreviewHtml = (html: string | null) => {
-    setPreviewHtml(prev => {
-      if (prev) setHtmlHistory(h => [...h.slice(-9), prev]);
-      return html;
+  const saveIndexHtmlContent = (html: string | null) => {
+    setProjectFiles(prevFiles => {
+        const newFiles = [...prevFiles];
+        const index = newFiles.findIndex(f => f.path === 'index.html');
+        if (index !== -1) {
+            newFiles[index] = { ...newFiles[index], content: html || '' };
+        } else if (html !== null) {
+            newFiles.push({ path: 'index.html', content: html });
+        }
+        return newFiles;
     });
-    try {
-      if (html) localStorage.setItem("lumen_last_html", html);
-      else localStorage.removeItem("lumen_last_html");
-    } catch { /* ignore */ }
   };
+
+  const handleApplyToGitHub = useCallback(async () => {
+    if (!ghSettings.token || !currentRepo) {
+        throw new Error("GitHub не настроен или не выбран проект.");
+    }
+    if (projectFiles.length === 0) throw new Error("Нет файлов для сохранения.");
+    
+    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${currentRepo}`);
+    if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
+    
+    const freshFilesResult = await fetchFromGitHub(currentRepo);
+    if (freshFilesResult.ok) {
+        setProjectFiles(freshFilesResult.files);
+    }
+    return result;
+  }, [ghSettings, projectFiles, currentRepo, pushToGitHub, fetchFromGitHub]);
 
   const { 
     cycleStatus, cycleLabel, messages, deployingId, 
     deployResult, pendingSql, handleSend, 
     handleStop, handleApply, setMessages 
   } = useChatLogic({
-    settings, ghSettings, adminMode, selfEditMode, fullCodeContext, currentFile, liveUrl,
-    fetchFromGitHub, pushToGitHub, savePreviewHtml, setMobileTab, setCurrentFile
+    settings, ghSettings, adminMode, selfEditMode, 
+    fullCodeContext: { html: indexHtmlFile?.content || '', files: projectFiles },
+    liveUrl,
+    savePreviewHtml: saveIndexHtmlContent,
+    setMobileTab,
+    onApplyToGitHub: handleApplyToGitHub,
   });
 
   const processedPreviewHtml = useMemo(() => {
-    if (!previewHtml) return null;
-    const charsetHtml = injectCharset(previewHtml);
+    if (!indexHtmlFile?.content) return null;
+    const charsetHtml = injectCharset(indexHtmlFile.content);
     const themedHtml = injectLightTheme(charsetHtml);
     return liveUrl ? injectBaseHref(themedHtml, liveUrl) : themedHtml;
-  }, [previewHtml, liveUrl]);
+  }, [indexHtmlFile, liveUrl]);
   
   const handleLumenLogin = (password: string): boolean => {
     const regularLoginSuccess = login(password);
@@ -221,89 +245,64 @@ export default function LumenApp() {
     localStorage.removeItem("lumen_admin_auth");
     window.location.reload();
   }, []);
+  
+  const handleProjectLoaded = useCallback((files: ProjectFile[], repo: string) => {
+      setProjectFiles(files);
+      setCurrentRepo(repo);
+      setActiveTab('chat');
+      setMessages([{
+        id: generateUniqueId(),
+        role: 'assistant',
+        text: `Загружен проект из ZIP-архива. Вы можете сохранить его в репозиторий, нажав 'Применить в GitHub'.`
+      }])
+  }, [setMessages]);
 
-  const handleUndo = () => {
-    setHtmlHistory(h => {
-      const prev = h[h.length - 1];
-      if (!prev) return h;
-      setPreviewHtml(prev);
-      try { localStorage.setItem("lumen_last_html", prev); } catch { /* ignore */ }
-      return h.slice(0, -1);
-    });
-  };
-
-  const handleLoadFromGitHub = useCallback(async () => {
-    if (!ghSettings.token || !ghSettings.repo) {
+  const handleLoadFromGitHub = useCallback(async (repo: string) => {
+    if (!ghSettings.token || !repo) {
         setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "GitHub-репозиторий не настроен." }]);
         return;
     }
-    const fetched = await fetchFromGitHub();
+    const result = await fetchFromGitHub(repo);
 
-    if (fetched.ok && fetched.html) {
-        setCurrentFile(fetched);
-        savePreviewHtml(fetched.html);
+    if (result.ok) {
+        setProjectFiles(result.files);
+        setCurrentRepo(repo);
         setMobileTab("preview");
         setMessages([{
             id: generateUniqueId(),
             role: "assistant",
-            text: `Загружен проект «${fetched.filePath}» из репозитория ${ghSettings.repo}. Опишите, что нужно изменить.`,
+            text: `Загружен проект «${repo}» из GitHub. Опишите, что нужно изменить.`,
         }]);
     } else {
-         setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить файл: ${fetched.message}` }]);
+         setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить проект: ${result.message}` }]);
     }
-}, [ghSettings, fetchFromGitHub, liveUrl, setMessages, setCurrentFile, savePreviewHtml, setMobileTab]);
+}, [ghSettings, fetchFromGitHub, setMessages, setProjectFiles, setCurrentRepo, setMobileTab]);
 
   useEffect(() => {
-    if (sessionStorage.getItem('lumen_load_after_project_select') === 'true') {
+    if (sessionStorage.getItem('lumen_load_after_project_select') === 'true' && ghSettings.repo) {
         sessionStorage.removeItem('lumen_load_after_project_select');
         setActiveTab('chat');
-        setTimeout(() => handleLoadFromGitHub(), 100);
+        setTimeout(() => handleLoadFromGitHub(ghSettings.repo), 100);
     }
-  }, [handleLoadFromGitHub]);
+  }, [handleLoadFromGitHub, ghSettings.repo]);
 
   const handleSelectTemplate = useCallback((prompt: string) => {
     setActiveTab("chat");
     setMessages([]);
-    savePreviewHtml(null);
+    setProjectFiles([]);
     handleSend(prompt, "site");
-  }, [handleSend, setMessages, savePreviewHtml]);
+  }, [handleSend, setMessages, setProjectFiles]);
 
   const handleSelectManagedProject = useCallback((project: { repo: string; siteUrl: string; }) => {
     try {
-        const saved = localStorage.getItem("lumen_gh_settings");
-        const settings = saved ? JSON.parse(saved) : {};
-        
-        const newSettings = {
-            ...settings,
-            repo: project.repo,
-            siteUrl: project.siteUrl,
-            filePath: "index.html",
-        };
-
-        localStorage.setItem("lumen_gh_settings", JSON.stringify(newSettings));
+        const newSettings = { ...ghSettings, repo: project.repo, siteUrl: project.siteUrl };
+        saveGhSettings(newSettings);
         sessionStorage.setItem('lumen_load_after_project_select', 'true');
-        window.location.reload();
+        window.location.reload(); // Reload to apply new settings and trigger useEffect
     } catch (e) {
         console.error("Failed to switch project", e);
     }
-  }, []);
-
-  const handleApplyToGitHub = useCallback(async () => {
-    if (!ghSettings.token || !ghSettings.repo) {
-        throw new Error("GitHub не настроен.");
-    }
-    if (!previewHtml) throw new Error("Нет кода для сохранения.");
-    if (!currentFile) throw new Error("Файл не загружен из GitHub");
-    
-    const result = await pushToGitHub(previewHtml, currentFile.sha, currentFile.filePath);
-    if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
-    
-    // After successful push, fetch the latest version to update SHA
-    const freshFile = await fetchFromGitHub();
-    if (freshFile.ok) {
-        setCurrentFile(freshFile);
-    }
-  }, [ghSettings, previewHtml, currentFile, pushToGitHub, fetchFromGitHub, setCurrentFile]);
+  }, [ghSettings, saveGhSettings]);
 
   const topStatus = cycleStatus === "reading" ? "generating" : cycleStatus;
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";
@@ -365,7 +364,7 @@ export default function LumenApp() {
                           deployingId={deployingId}
                           deployResult={deployResult}
                           pendingSql={pendingSql}
-                          hasGitHub={!!(ghSettings.token && ghSettings.repo)}
+                          hasGitHub={!!(ghSettings.token && currentRepo)}
                         />
                     </div>
                     <div className={`flex flex-col h-full flex-1 min-w-0 ${mobileTab === "preview" ? "flex" : "hidden md:flex"}`}>
@@ -373,9 +372,9 @@ export default function LumenApp() {
                         status={topStatus}
                         previewHtml={processedPreviewHtml}
                         liveUrl={liveUrl}
-                        onApplyToGitHub={ghSettings.token && ghSettings.repo ? handleApplyToGitHub : undefined}
-                        onUndo={htmlHistory.length > 0 ? handleUndo : undefined}
-                        canUndo={htmlHistory.length > 0}
+                        onApplyToGitHub={ghSettings.token && currentRepo ? async () => { await handleApplyToGitHub(); } : undefined}
+                        onUndo={undefined}
+                        canUndo={false}
                       />
                     </div>
                   </div>
@@ -384,7 +383,13 @@ export default function LumenApp() {
               )}
               {activeTab === "projects" && (
                   <motion.div key="projects" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
-                    <ProjectsPage onGoToChat={() => setActiveTab("chat")} onSelectTemplate={handleSelectTemplate} onSelectManagedProject={handleSelectManagedProject} />
+                    <ProjectsPage 
+                        onGoToChat={() => setActiveTab("chat")} 
+                        onSelectTemplate={handleSelectTemplate} 
+                        onSelectManagedProject={handleSelectManagedProject} 
+                        onProjectLoaded={handleProjectLoaded}
+                        adminMode={adminMode}
+                    />
                   </motion.div>
               )}
               {activeTab === "profile" && (
