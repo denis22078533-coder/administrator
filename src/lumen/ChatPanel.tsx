@@ -103,7 +103,7 @@ export default function ChatPanel({
       setValue(display);
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
-        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 240) + "px";
       }
     };
     recognition.onend = () => { setIsRecording(false); };
@@ -203,7 +203,7 @@ export default function ChatPanel({
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
     e.target.style.height = "auto";
-    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+    e.target.style.height = Math.min(e.target.scrollHeight, 240) + "px";
   };
 
   const modeHint = value.trim() ? (
@@ -456,7 +456,7 @@ export default function ChatPanel({
                 disabled={isActive}
                 rows={1}
                 className="flex-1 bg-transparent text-white/80 placeholder-white/20 text-xs resize-none outline-none leading-relaxed disabled:opacity-50"
-                style={{ maxHeight: 120 }}
+                style={{ maxHeight: 240 }}
               />
               <motion.button
                 onClick={toggleRecording}
@@ -496,4 +496,3 @@ export default function ChatPanel({
     </div>
   );
 }
-
