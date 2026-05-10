@@ -1,12 +1,11 @@
 import { useState, useCallback } from "react";
-import JSZip from 'jszip';
 
 const STORAGE_KEY = "lumen_github";
 
 export interface GitHubSettings {
   token: string;
   repo: string;
-  filePath: string; // This will be the root path for multi-file projects
+  filePath: string; 
   siteUrl: string;
   engineToken: string;
   engineRepo: string;
@@ -169,32 +168,14 @@ export function useGitHub(isAdminMode: boolean) {
     }
   }, [ghSettings, isAdminMode]);
   
-    const downloadProjectAsZip = useCallback(async (repo: string) => {
+    const downloadProjectAsZip = useCallback(async () => {
         try {
-            const result = await fetchFromGitHub(repo);
-            if (!result.ok || result.files.length === 0) {
-                throw new Error(result.message || 'Не удалось загрузить файлы проекта.');
-            }
-            
-            const zip = new JSZip();
-            result.files.forEach(file => {
-                zip.file(file.path, file.content);
-            });
-
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            const repoName = repo.split('/').pop() || 'project';
-            link.download = `${repoName}.zip`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-
-        } catch (error: any) {
+            window.location.href = '/download-project-zip';
+        } catch (error: any) { 
             console.error("Ошибка при скачивании проекта:", error);
+            alert('Не удалось начать скачивание. Пожалуйста, проверьте консоль.');
         }
-    }, [fetchFromGitHub]);
+    }, []);
 
   return { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip };
 }
