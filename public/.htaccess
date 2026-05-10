@@ -1,8 +1,9 @@
-RewriteEngine On
-
-# 1. PROXY API to Python backend
-RewriteRule ^api/(.*)$ http://127.0.0.1:5001/api/$1 [P,L]
-
-# 2. FRONTEND ROUTING: if not a file, serve index.html
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^ index.html [QSA,L]
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteRule . /index.html [L]
+</IfModule>
