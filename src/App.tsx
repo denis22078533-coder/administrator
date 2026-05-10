@@ -11,6 +11,7 @@ import SystemAdminPage from "./SystemAdminPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const base = window.location.hostname.includes('github.io') ? '/administrator' : '';
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -18,7 +19,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <BrowserRouter basename="/administrator" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter basename={base} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<LumenApp />} />
             <Route path="/admin" element={<SystemAdminPage />} />
