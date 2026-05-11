@@ -142,9 +142,8 @@ const injectCharset = (html: string): string => {
 export default function LumenApp() {
   const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip } = useGitHub(adminMode);
+  const { ghSettings, setGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip } = useGitHub(adminMode);
   
-  // Multi-file project state
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
   const [currentRepo, setCurrentRepo] = useState<string | null>(null);
 
@@ -267,34 +266,39 @@ export default function LumenApp() {
       }
   }, [fetchFromGitHub, downloadProjectAsZip]);
 
-  const handleLoadFromGitHub = useCallback(async (repo: string) => {
-    if (!ghSettings.token || !repo) {
-        setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "GitHub-репозиторий не настроен." }]);
-        return;
-    }
-    const result = await fetchFromGitHub(repo);
+  const handleOpenProjectFromTemplate = useCallback((repo: string) => {
+      setGhSettings(prev => ({ ...prev, repo }));
+      sessionStorage.setItem('lumen_load_after_project_select', 'true');
+  }, [setGhSettings]);
 
-    if (result.ok) {
-        setProjectFiles(result.files);
-        setCurrentRepo(repo);
-        setMobileTab("preview");
-        setActiveTab("chat");
-        setMessages([{
-            id: generateUniqueId(),
-            role: "assistant",
-            text: `Загружен проект «${repo}» из GitHub. Опишите, что нужно изменить.`,
-        }]);
-    } else {
-         setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить проект: ${result.message}` }]);
-    }
-}, [ghSettings, fetchFromGitHub, setMessages, setProjectFiles, setCurrentRepo, setMobileTab, setActiveTab]);
+  const handleLoadFromGitHub = useCallback(async (repo: string) => {
+      if (!ghSettings.token || !repo) {
+          setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "Токен GitHub или репозиторий не настроены." }]);
+          return;
+      }
+      const result = await fetchFromGitHub(repo);
+
+      if (result.ok) {
+          setProjectFiles(result.files);
+          setCurrentRepo(repo);
+          setMobileTab("preview");
+          setActiveTab("chat");
+          setMessages([{
+              id: generateUniqueId(),
+              role: "assistant",
+              text: `Загружен проект «${repo}» из GitHub. Опишите, что нужно изменить.`,
+          }]);
+      } else {
+          setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить проект: ${result.message}` }]);
+      }
+  }, [ghSettings.token, fetchFromGitHub, setMessages]);
 
   useEffect(() => {
-    if (sessionStorage.getItem('lumen_load_after_project_select') === 'true' && ghSettings.repo) {
-        sessionStorage.removeItem('lumen_load_after_project_select');
-        setActiveTab('chat');
-        setTimeout(() => handleLoadFromGitHub(ghSettings.repo), 100);
-    }
+      if (sessionStorage.getItem('lumen_load_after_project_select') === 'true' && ghSettings.repo) {
+          sessionStorage.removeItem('lumen_load_after_project_select');
+          setActiveTab('chat');
+          setTimeout(() => handleLoadFromGitHub(ghSettings.repo), 100);
+      }
   }, [handleLoadFromGitHub, ghSettings.repo]);
 
   const topStatus = cycleStatus === "reading" ? "generating" : cycleStatus;
@@ -377,7 +381,7 @@ export default function LumenApp() {
               {activeTab === "projects" && (
                   <motion.div key="projects" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
                       <ProjectsPage
-                          onOpenProject={handleLoadFromGitHub}
+                          onOpenProject={handleOpenProjectFromTemplate}
                           onProjectLoaded={handleProjectLoaded}
                           onDownloadProject={handleDownloadProject}
                           isTesterMode={adminMode}

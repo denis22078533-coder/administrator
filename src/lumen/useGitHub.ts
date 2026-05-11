@@ -186,5 +186,5 @@ export function useGitHub(isAdminMode: boolean) {
     }
 }, []);
 
-  return { ghSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip };
+  return { ghSettings, setGhSettings, saveGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip };
 }
