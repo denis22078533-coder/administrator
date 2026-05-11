@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -36,8 +37,6 @@ export interface Settings {
   proxyUrl: string;
   customPrompt?: string;
 }
-
-// ... (rest of the file is unchanged, keeping it for brevity)
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
@@ -206,7 +205,7 @@ export default function LumenApp() {
     }
     if (projectFiles.length === 0) throw new Error("Нет файлов для сохранения.");
     
-    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${currentRepo}`, currentRepo);
+    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${currentRepo}`, null);
     if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
     
     const freshFilesResult = await fetchFromGitHub(currentRepo);
