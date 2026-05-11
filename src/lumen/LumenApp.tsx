@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Icon from "@/components/ui/icon";
 import LumenTopBar from "./LumenTopBar";
 import LivePreview from "./LivePreview";
-import ChatPanel from "./ChatPanel";
+import ChatPanel, { MessageAction } from "./ChatPanel";
 import HomePage from "./HomePage";
 import ProjectsPage from "./ProjectsPage";
 import ProfilePage from "./ProfilePage";
@@ -23,6 +23,7 @@ export interface Message {
   text: string;
   html?: string;
   track?: any;
+  actions?: MessageAction[];
 }
 
 export interface Settings {
@@ -35,6 +36,8 @@ export interface Settings {
   proxyUrl: string;
   customPrompt?: string;
 }
+
+// ... (rest of the file is unchanged, keeping it for brevity)
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
@@ -183,7 +186,7 @@ export default function LumenApp() {
     return user && repo ? `https://${user}.github.io/${repo}/` : "";
   }, [ghSettings.repo, ghSettings.siteUrl]);
 
-  const saveIndexHtmlContent = (html: string | null) => {
+  const saveIndexHtmlContent = useCallback((html: string | null) => {
     setProjectFiles(prevFiles => {
         const newFiles = [...prevFiles];
         const index = newFiles.findIndex(f => f.path === 'index.html');
@@ -194,7 +197,7 @@ export default function LumenApp() {
         }
         return newFiles;
     });
-  };
+  }, []);
 
   const handleApplyToGitHub = useCallback(async (repoToApply?: string) => {
     const repo = repoToApply || currentRepo;
@@ -215,12 +218,11 @@ export default function LumenApp() {
 
   const { 
     cycleStatus, cycleLabel, messages, deployingId, 
-    deployResult, pendingSql, handleSend, 
+    deployResult, handleSend, 
     handleStop, handleApply, setMessages 
   } = useChatLogic({
-    settings, ghSettings, adminMode, selfEditMode, 
+    settings, ghSettings, 
     fullCodeContext: { html: indexHtmlFile?.content || '', files: projectFiles },
-    liveUrl,
     savePreviewHtml: saveIndexHtmlContent,
     setMobileTab,
     onApplyToGitHub: handleApplyToGitHub,
@@ -348,7 +350,6 @@ export default function LumenApp() {
                           onApply={handleApply}
                           deployingId={deployingId}
                           deployResult={deployResult}
-                          pendingSql={pendingSql}
                           hasGitHub={!!(ghSettings.token && currentRepo)}
                         />
                     </div>
