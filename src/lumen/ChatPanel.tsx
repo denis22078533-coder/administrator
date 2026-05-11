@@ -26,8 +26,6 @@ const ScrollToBottom = () => {
 const CHAT_MODES: { id: ChatMode; label: string; icon: any, placeholder: string }[] = [
   { id: "site", label: "Создаю сайт", icon: "Globe", placeholder: "Опишите сайт, который вы хотите создать..." },
   { id: "chat", label: "Чат", icon: "MessageCircle", placeholder: "Напишите что угодно — чат, картинку или песню..." },
-  // { id: "image", label: "Генерирую картинку", icon: "Image" },
-  // { id: "music", label: "Создаю музыку", icon: "Music" },
 ];
 
 export default function ChatPanel({
@@ -50,29 +48,23 @@ export default function ChatPanel({
 
   const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
   };
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    }
+  }, [text]);
 
   const handleSend = () => {
     const trimmed = text.trim();
     if (trimmed) {
       onSend(trimmed, mode);
       setText("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
     }
   };
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 500)}px`;
-    }
-  }, [text]);
 
   const renderMessageContent = (msg: Message) => {
     if (msg.html?.startsWith("__IMAGE__:")) {
@@ -99,7 +91,7 @@ export default function ChatPanel({
   return (
     <div className="h-full flex flex-col relative">
       {messages.length === 0 && !isGenerating && (
-        <div className="flex-1 flex flex-col items-center justify-center px-4 -mt-10">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-10">
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center text-5xl shadow-[0_0_40px_#f59e0b50] mb-6">
             🐜
           </div>
@@ -180,8 +172,8 @@ export default function ChatPanel({
         <ScrollToBottom />
       </div>
 
-      <div className="shrink-0 p-2 pt-1 border-t border-white/[0.06] bg-[#0a0a0f]">
-        <div className="flex items-center gap-2 mb-1.5">
+      <div className="shrink-0 p-2 border-t border-white/[0.06] bg-[#0a0a0f]">
+        <div className="flex items-center gap-2 mb-2">
             <div className="text-xs text-white/40 font-medium px-1.5">РЕЖИМ:</div>
              {CHAT_MODES.map(m => (
                 <button 
@@ -194,42 +186,51 @@ export default function ChatPanel({
             ))}
         </div>
         <div className="relative">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleTextChange}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder={currentPlaceholder}
-            className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg text-white placeholder:text-white/30 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500 py-2.5 pl-4 pr-24 transition-all scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
-            rows={1}
-            style={{ maxHeight: 240, minHeight: 46 }}
-          />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-             {isGenerating ? (
-              <button
-                onClick={onStop}
-                className="w-8 h-8 flex items-center justify-center bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition-colors"
-              >
-                <Icon name="Square" size={16} />
-              </button>
-            ) : (
-              <>
-                {/* <button className="w-8 h-8 flex items-center justify-center bg-white/5 text-white/60 rounded-full hover:bg-white/10 transition-colors"> <Icon name="Mic" size={16} /> </button> */}
-                <button
-                  onClick={handleSend}
-                  disabled={!text.trim()}
-                  className="w-8 h-8 flex items-center justify-center bg-amber-500 text-black rounded-full transition-colors disabled:bg-white/10 disabled:text-white/40"
-                >
-                  <Icon name="ArrowUp" size={18} />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                <button className="w-8 h-8 flex items-center justify-center bg-white/5 text-white/60 rounded-full hover:bg-white/10 transition-colors">
+                    <Icon name="Plus" size={16} />
                 </button>
-              </>
-            )}
-          </div>
+            </div>
+
+            <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleTextChange}
+                onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                }
+                }}
+                placeholder={currentPlaceholder}
+                className="w-full bg-white/[0.05] border border-white/[0.1] rounded-xl text-white placeholder:text-white/30 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500 py-3.5 pl-14 pr-28 transition-all overflow-hidden"
+                rows={1}
+                style={{ minHeight: 52 }}
+            />
+
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                {isGenerating ? (
+                <button
+                    onClick={onStop}
+                    className="w-9 h-9 flex items-center justify-center bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition-colors"
+                >
+                    <Icon name="Square" size={16} />
+                </button>
+                ) : (
+                <>
+                    <button className="w-9 h-9 flex items-center justify-center bg-white/5 text-white/60 rounded-full hover:bg-white/10 transition-colors">
+                        <Icon name="Mic" size={18} />
+                    </button>
+                    <button
+                        onClick={handleSend}
+                        disabled={!text.trim()}
+                        className="w-9 h-9 flex items-center justify-center bg-amber-500 text-black rounded-full transition-colors disabled:bg-white/10 disabled:text-white/40"
+                    >
+                        <Icon name="ArrowUp" size={20} />
+                    </button>
+                </>
+                )}
+            </div>
         </div>
       </div>
     </div>
