@@ -17,7 +17,7 @@ const projectsData: Project[] = [
     id: 'product-store',
     name: 'Магазин продуктов',
     description: 'Готовый шаблон для интернет-магазина с адаптивным дизайном и базовой логикой.',
-    imageUrl: '/project-product-store.png',
+    imageUrl: '/placeholder.svg',
     repo: 'denis22078533-coder/product-store-template',
   },
 ];
