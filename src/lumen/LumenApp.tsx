@@ -178,13 +178,14 @@ export default function LumenApp() {
   }, [adminMode]);
 
   const liveUrl = useMemo(() => {
+    const repoPath = currentRepo || ghSettings.repo;
     if (ghSettings.siteUrl?.trim()) {
       const u = ghSettings.siteUrl.trim();
       return u.endsWith("/") ? u : u + "/";
     }
-    const [user, repo] = (ghSettings.repo || "").split("/");
+    const [user, repo] = repoPath.split("/");
     return user && repo ? `https://${user}.github.io/${repo}/` : "";
-  }, [ghSettings.repo, ghSettings.siteUrl]);
+  }, [currentRepo, ghSettings.repo, ghSettings.siteUrl]);
 
   const saveIndexHtmlContent = useCallback((html: string | null) => {
     setProjectFiles(prevFiles => {
@@ -199,17 +200,16 @@ export default function LumenApp() {
     });
   }, []);
 
-  const handleApplyToGitHub = useCallback(async (repoToApply?: string) => {
-    const repo = repoToApply || currentRepo;
-    if (!ghSettings.token || !repo) {
+  const handleApplyToGitHub = useCallback(async () => {
+    if (!ghSettings.token || !currentRepo) {
         throw new Error("GitHub не настроен или не выбран проект.");
     }
     if (projectFiles.length === 0) throw new Error("Нет файлов для сохранения.");
     
-    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${repo}`);
+    const result = await pushToGitHub(projectFiles, `Lumen: Обновление проекта ${currentRepo}`, currentRepo);
     if (!result.ok) throw new Error(result.message || "Ошибка сохранения");
     
-    const freshFilesResult = await fetchFromGitHub(repo);
+    const freshFilesResult = await fetchFromGitHub(currentRepo);
     if (freshFilesResult.ok) {
         setProjectFiles(freshFilesResult.files);
     }
@@ -351,6 +351,7 @@ export default function LumenApp() {
                           deployingId={deployingId}
                           deployResult={deployResult}
                           hasGitHub={!!(ghSettings.token && currentRepo)}
+                          currentTarget={currentRepo || (adminMode ? ghSettings.engineRepo : ghSettings.repo)}
                         />
                     </div>
                     <div className={`flex flex-col h-full flex-1 min-w-0 ${mobileTab === "preview" ? "flex" : "hidden md:flex"}`}>

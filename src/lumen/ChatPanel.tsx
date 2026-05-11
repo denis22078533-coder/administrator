@@ -19,6 +19,7 @@ interface ChatPanelProps {
   deployingId: number | null;
   deployResult: { id: number; ok: boolean; message: string } | null;
   hasGitHub: boolean;
+  currentTarget: string;
 }
 
 const ScrollToBottom = () => {
@@ -41,6 +42,7 @@ export default function ChatPanel({
   deployingId,
   deployResult,
   hasGitHub,
+  currentTarget,
 }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ChatMode>("site");
@@ -170,14 +172,17 @@ export default function ChatPanel({
                 ))}
             </div>
              {hasGitHub && lastMessage?.html && lastMessage.role === 'assistant' && (
-                <button 
-                    onClick={() => onApply(lastMessage.id)}
-                    disabled={deployingId === lastMessage.id}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors bg-white/10 text-white/80 disabled:opacity-50 disabled:cursor-wait"
-                >
-                    <Icon name="Github" size={13} />
-                    <span>{deployingId === lastMessage.id ? 'Применяю...' : 'Применить в GitHub'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/40">Цель: {currentTarget}</span>
+                    <button 
+                        onClick={() => onApply(lastMessage.id)}
+                        disabled={deployingId === lastMessage.id}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors bg-white/10 text-white/80 disabled:opacity-50 disabled:cursor-wait"
+                    >
+                        <Icon name="Github" size={13} />
+                        <span>{deployingId === lastMessage.id ? 'Применяю...' : 'Применить в GitHub'}</span>
+                    </button>
+                </div>
              )}
           </div>
         </div>

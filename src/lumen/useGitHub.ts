@@ -110,11 +110,12 @@ export function useGitHub(isAdminMode: boolean) {
 
   const pushToGitHub = useCallback(async (
     files: ProjectFile[],
-    commitMessage: string
+    commitMessage: string,
+    repo: string | null
   ): Promise<{ ok: boolean; message: string }> => {
 
     const token = isAdminMode ? ghSettings.engineToken : ghSettings.token;
-    const targetRepo = isAdminMode ? ghSettings.engineRepo : ghSettings.repo;
+    const targetRepo = repo || (isAdminMode ? ghSettings.engineRepo : ghSettings.repo);
 
     if (!token || !targetRepo) {
       return { ok: false, message: "Токен или репозиторий не настроен" };

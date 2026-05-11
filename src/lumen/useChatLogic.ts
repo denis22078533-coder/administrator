@@ -297,7 +297,10 @@ export function useChatLogic({
     setCycleStatus(result.ok ? "done" : "error");
     setCycleLabel("");
     setDeployingId(null);
-    setDeployResult({ id: msgId, ...result });
+
+    const finalMessage = result.ok ? "Код отправлен. Ракета GitHub запущена!" : result.message;
+    setDeployResult({ id: msgId, ok: result.ok, message: finalMessage });
+    
     setTimeout(() => setDeployResult(null), result.ok ? 6000 : 30000);
   }, [ghSettings, onApplyToGitHub, addMessage]);
 
