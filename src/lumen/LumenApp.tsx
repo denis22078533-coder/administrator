@@ -142,7 +142,7 @@ const injectCharset = (html: string): string => {
 export default function LumenApp() {
   const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, fetchFromGitHub, pushToGitHub } = useGitHub(adminMode);
+  const { ghSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip } = useGitHub(adminMode);
   
   // Multi-file project state
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
@@ -257,6 +257,15 @@ export default function LumenApp() {
         text: `Загружен проект из ZIP-архива. Вы можете сохранить его в репозиторий, нажав 'Применить в GitHub'.`
       }])
   }, [setMessages]);
+  
+  const handleDownloadProject = useCallback(async (repo: string) => {
+      const result = await fetchFromGitHub(repo);
+      if (result.ok) {
+          downloadProjectAsZip(result.files, repo);
+      } else {
+          alert(`Не удалось загрузить проект: ${result.message}`);
+      }
+  }, [fetchFromGitHub, downloadProjectAsZip]);
 
   const handleLoadFromGitHub = useCallback(async (repo: string) => {
     if (!ghSettings.token || !repo) {
@@ -269,6 +278,7 @@ export default function LumenApp() {
         setProjectFiles(result.files);
         setCurrentRepo(repo);
         setMobileTab("preview");
+        setActiveTab("chat");
         setMessages([{
             id: generateUniqueId(),
             role: "assistant",
@@ -277,7 +287,7 @@ export default function LumenApp() {
     } else {
          setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить проект: ${result.message}` }]);
     }
-}, [ghSettings, fetchFromGitHub, setMessages, setProjectFiles, setCurrentRepo, setMobileTab]);
+}, [ghSettings, fetchFromGitHub, setMessages, setProjectFiles, setCurrentRepo, setMobileTab, setActiveTab]);
 
   useEffect(() => {
     if (sessionStorage.getItem('lumen_load_after_project_select') === 'true' && ghSettings.repo) {
@@ -368,11 +378,9 @@ export default function LumenApp() {
                   <motion.div key="projects" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="absolute inset-0">
                       <ProjectsPage
                           onOpenProject={handleLoadFromGitHub}
-                          onApplyToGitHub={handleApplyToGitHub}
                           onProjectLoaded={handleProjectLoaded}
+                          onDownloadProject={handleDownloadProject}
                           isTesterMode={adminMode}
-                          projectFiles={projectFiles}
-                          currentRepo={currentRepo}
                       />
                   </motion.div>
               )}
@@ -390,4 +398,3 @@ export default function LumenApp() {
     </AnimatePresence>
   );
 }
-

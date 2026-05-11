@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import Icon from '@/components/ui/icon';
-import { useGitHub, ProjectFile } from './useGitHub';
+import { ProjectFile } from './useGitHub';
 import JSZip from 'jszip';
 
 interface Project {
@@ -25,10 +25,10 @@ const projectsData: Project[] = [
 interface ProjectCardProps {
   project: Project;
   onOpen: (repo: string) => void;
-  onApply: (repo: string) => void;
+  onDownload: (repo: string) => void;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onApply }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onDownload }) => {
   return (
     <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden shadow-lg transition-all hover:shadow-xl hover:border-white/10">
       <div className="relative">
@@ -47,14 +47,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onApply }) =
             <Icon name="FolderOpen" size={14} />
             Открыть
           </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
-            onClick={() => onApply(project.repo)}
-            className="flex-1 h-9 rounded-lg bg-purple-600/50 hover:bg-purple-600/70 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-          >
-            <Icon name="Check" size={16} />
-            Применить
-          </motion.button>
+            <motion.button
+                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
+                onClick={() => onDownload(project.repo)}
+                className="h-9 px-3 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-semibold text-sm transition-colors flex items-center justify-center gap-2 border border-emerald-500/30"
+            >
+                <Icon name="Download" size={15} />
+            </motion.button>
         </div>
       </div>
     </div>
@@ -63,22 +62,17 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onApply }) =
 
 interface ProjectsPageProps {
     onOpenProject: (repo: string) => void;
-    onApplyToGitHub: (repo: string) => void;
     onProjectLoaded: (files: ProjectFile[], repo: string) => void;
+    onDownloadProject: (repo: string) => void;
     isTesterMode: boolean;
-    projectFiles: ProjectFile[];
-    currentRepo: string | null;
 }
 
 const ProjectsPage: React.FC<ProjectsPageProps> = ({ 
     onOpenProject, 
-    onApplyToGitHub, 
     onProjectLoaded, 
-    isTesterMode, 
-    projectFiles,
-    currentRepo
+    onDownloadProject,
+    isTesterMode,
 }) => {
-  const { downloadProjectAsZip } = useGitHub(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,14 +100,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleDownload = () => {
-      if (projectFiles.length > 0) {
-          downloadProjectAsZip(projectFiles, currentRepo || 'project');
-      } else {
-          alert("Нет файлов для скачивания.");
-      }
-  }
-
   return (
     <div className="p-6">
         <div className="flex items-center justify-between mb-6">
@@ -132,15 +118,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
                         <Icon name="Upload" size={15} />
                         Загрузить .zip
                     </motion.button>
-                    <motion.button
-                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                        onClick={handleDownload}
-                        className="h-10 px-4 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-semibold text-sm transition-colors flex items-center justify-center gap-2 border border-emerald-500/30"
-                        disabled={projectFiles.length === 0}
-                    >
-                        <Icon name="Download" size={15} />
-                        Скачать проект
-                    </motion.button>
                 </div>
             )}
         </div>
@@ -151,7 +128,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
             key={project.id}
             project={project}
             onOpen={onOpenProject}
-            onApply={onApplyToGitHub}
+            onDownload={onDownloadProject}
           />
         ))}
       </div>
