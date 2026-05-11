@@ -12,13 +12,21 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Dynamically determine the basename.
+// On GitHub Pages, the project is served from a subfolder (/administrator/).
+// On the main domain (югазин.рф), it's served from the root (/).
+const getBasename = () => {
+  const isGitHubPages = window.location.hostname.endsWith('github.io');
+  return isGitHubPages ? '/administrator' : '/';
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <BrowserRouter basename="/administrator" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter basename={getBasename()} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<LumenApp />} />
             <Route path="/lumen" element={<LumenApp />} />
