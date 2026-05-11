@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -142,7 +141,7 @@ const injectCharset = (html: string): string => {
 export default function LumenApp() {
   const navigate = useNavigate();
   const { loggedIn, login, adminLogin, adminMode } = useLumenAuth();
-  const { ghSettings, setGhSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip } = useGitHub(adminMode);
+  const { ghSettings, fetchFromGitHub, pushToGitHub, downloadProjectAsZip } = useGitHub(adminMode);
   
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
   const [currentRepo, setCurrentRepo] = useState<string | null>(null);
@@ -266,40 +265,29 @@ export default function LumenApp() {
       }
   }, [fetchFromGitHub, downloadProjectAsZip]);
 
-  const handleOpenProjectFromTemplate = useCallback((repo: string) => {
-      setGhSettings(prev => ({ ...prev, repo }));
-      sessionStorage.setItem('lumen_load_after_project_select', 'true');
-  }, [setGhSettings]);
+  const handleOpenProjectFromTemplate = useCallback(async (repo: string) => {
+    if (!ghSettings.token) {
+        setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "Токен GitHub не настроен." }]);
+        setActiveTab("chat");
+        return;
+    }
+    const result = await fetchFromGitHub(repo);
+    if (result.ok) {
+        setProjectFiles(result.files);
+        setCurrentRepo(repo);
+        setMobileTab("preview");
+        setActiveTab("chat");
+        setMessages([{
+            id: generateUniqueId(),
+            role: "assistant",
+            text: `Загружен проект «${repo}» из GitHub. Опишите, что нужно изменить.`,
+        }]);
+    } else {
+        setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить проект: ${result.message}` }]);
+        setActiveTab("chat");
+    }
+  }, [ghSettings.token, fetchFromGitHub, setMessages, setProjectFiles, setCurrentRepo, setMobileTab, setActiveTab]);
 
-  const handleLoadFromGitHub = useCallback(async (repo: string) => {
-      if (!ghSettings.token || !repo) {
-          setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: "Токен GitHub или репозиторий не настроены." }]);
-          return;
-      }
-      const result = await fetchFromGitHub(repo);
-
-      if (result.ok) {
-          setProjectFiles(result.files);
-          setCurrentRepo(repo);
-          setMobileTab("preview");
-          setActiveTab("chat");
-          setMessages([{
-              id: generateUniqueId(),
-              role: "assistant",
-              text: `Загружен проект «${repo}» из GitHub. Опишите, что нужно изменить.`,
-          }]);
-      } else {
-          setMessages(prev => [...prev, { id: generateUniqueId(), role: "assistant", text: `Не удалось загрузить проект: ${result.message}` }]);
-      }
-  }, [ghSettings.token, fetchFromGitHub, setMessages]);
-
-  useEffect(() => {
-      if (sessionStorage.getItem('lumen_load_after_project_select') === 'true' && ghSettings.repo) {
-          sessionStorage.removeItem('lumen_load_after_project_select');
-          setActiveTab('chat');
-          setTimeout(() => handleLoadFromGitHub(ghSettings.repo), 100);
-      }
-  }, [handleLoadFromGitHub, ghSettings.repo]);
 
   const topStatus = cycleStatus === "reading" ? "generating" : cycleStatus;
   const isGenerating = cycleStatus === "generating" || cycleStatus === "reading";

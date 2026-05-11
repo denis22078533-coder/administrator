@@ -17,10 +17,28 @@ const projectsData: Project[] = [
     id: 'product-store',
     name: 'Магазин продуктов',
     description: 'Готовый шаблон для интернет-магазина с адаптивным дизайном и базовой логикой.',
-    imageUrl: '/placeholder.svg',
+    imageUrl: '/project-product-store.png', // <-- Исправляем путь
     repo: 'denis22078533-coder/product-store-template',
   },
 ];
+
+const UploadCard: React.FC<{ onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void, inputRef: React.RefObject<HTMLInputElement> }> = ({ onFileSelect, inputRef }) => {
+    return (
+        <motion.div
+            whileHover={{ scale: 1.02, y: -2 }}
+            onClick={() => inputRef.current?.click()}
+            className="cursor-pointer bg-white/[0.03] border-2 border-dashed border-white/[0.1] rounded-2xl flex flex-col items-center justify-center text-center p-6 h-full min-h-[290px] transition-colors hover:border-white/20 hover:bg-white/[0.05]"
+        >
+            <input type="file" accept=".zip" ref={inputRef} onChange={onFileSelect} className="hidden" />
+            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                <Icon name="UploadCloud" size={32} className="text-white/50"/>
+            </div>
+            <h3 className="font-bold text-white">Загрузить свой проект</h3>
+            <p className="text-sm text-white/40 mt-1">Перенесите сюда .zip-архив или нажмите для выбора файла.</p>
+        </motion.div>
+    );
+};
+
 
 interface ProjectCardProps {
   project: Project;
@@ -30,30 +48,30 @@ interface ProjectCardProps {
 
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onDownload }) => {
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden shadow-lg transition-all hover:shadow-xl hover:border-white/10">
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden shadow-lg flex flex-col">
       <div className="relative">
         <img src={project.imageUrl} alt={project.name} className="w-full h-40 object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <h3 className="absolute bottom-3 left-4 text-white font-bold text-lg">{project.name}</h3>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
       </div>
-      <div className="p-4">
-        <p className="text-white/50 text-sm mb-4">{project.description}</p>
-        <div className="flex gap-2">
+      <div className="p-4 flex flex-col flex-grow">
+        <h3 className="font-bold text-white text-lg">{project.name}</h3>
+        <p className="text-white/50 text-sm mt-1 mb-4 flex-grow">{project.description}</p>
+        <div className="flex gap-2 items-center mt-auto">
           <motion.button
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
             onClick={() => onOpen(project.repo)}
-            className="flex-1 h-9 rounded-lg bg-white/[0.05] hover:bg-white/[0.08] text-white/80 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+            className="flex-1 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
           >
             <Icon name="FolderOpen" size={14} />
             Открыть
           </motion.button>
-            <motion.button
-                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
-                onClick={() => onDownload(project.repo)}
-                className="h-9 px-3 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-semibold text-sm transition-colors flex items-center justify-center gap-2 border border-emerald-500/30"
-            >
-                <Icon name="Download" size={15} />
-            </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
+            onClick={() => onDownload(project.repo)}
+            className="h-9 w-9 flex-shrink-0 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 font-semibold text-sm transition-colors flex items-center justify-center"
+          >
+            <Icon name="Download" size={15} />
+          </motion.button>
         </div>
       </div>
     </div>
@@ -67,12 +85,7 @@ interface ProjectsPageProps {
     isTesterMode: boolean;
 }
 
-const ProjectsPage: React.FC<ProjectsPageProps> = ({ 
-    onOpenProject, 
-    onProjectLoaded, 
-    onDownloadProject,
-    isTesterMode,
-}) => {
+const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenProject, onProjectLoaded, onDownloadProject, isTesterMode }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,7 +104,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
             }
         }
         onProjectLoaded(files, repoName);
-
     } catch (error) {
         console.error("Ошибка при чтении ZIP-архива:", error);
         alert("Не удалось прочитать ZIP-архив.");
@@ -101,28 +113,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   };
 
   return (
-    <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-            <div>
-                <h1 className="text-2xl font-bold text-white">Готовые проекты</h1>
-                <p className="text-white/50">Выберите шаблон, чтобы начать работу.</p>
-            </div>
-            {isTesterMode && (
-                <div className='flex items-center gap-2'>
-                    <input type="file" accept=".zip" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
-                    <motion.button
-                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="h-10 px-4 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 font-semibold text-sm transition-colors flex items-center justify-center gap-2 border border-blue-500/30"
-                    >
-                        <Icon name="Upload" size={15} />
-                        Загрузить .zip
-                    </motion.button>
-                </div>
-            )}
-        </div>
+    <div className="p-4 sm:p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white">Готовые проекты</h1>
+        <p className="text-white/50">Выберите готовый шаблон или загрузите свой проект.</p>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {isTesterMode && <UploadCard onFileSelect={handleFileSelect} inputRef={fileInputRef} />}
         {projectsData.map((project) => (
           <ProjectCard
             key={project.id}
